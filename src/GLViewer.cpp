@@ -85,7 +85,8 @@ sl::CameraParameters param, sl::FusedPointCloud* ptr, sl::MODEL zed_model) {
     glutInitWindowSize(1280, 720);
     glutInitWindowPosition(wnd_w*0.05, wnd_h*0.05);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
-    glutCreateWindow("ZED PointCloud Fusion");
+    GLint WindowID1;
+    WindowID1 = glutCreateWindow("ZED PointCloud Fusion");
 
     GLenum err = glewInit();
     if (GLEW_OK != err)
