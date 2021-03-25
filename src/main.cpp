@@ -27,15 +27,36 @@
 #include <sl/Camera.hpp>
 
 // Sample includes
+#include <math.h>
+#include <algorithm>
 #include "GLViewer.hpp"
 #include <opencv2/opencv.hpp>
 #include <pcl/common/common_headers.h>
 #include <pcl/visualization/pcl_visualizer.h>
-#include <algorithm>
 #include <pcl/filters/crop_box.h>
+#include <pcl/visualization/common/io.h>
+#include <pcl/search/search.h>
+#include <pcl/kdtree/kdtree_flann.h>
+#include <pcl/io/ply_io.h>
 // Using std and sl namespaces
 using namespace std;
 using namespace sl;
+
+Mat data_cloud; // container for ZED 2 pointcloud measurement
+int id = 0; // Bounding box PCL id
+struct DetectedObject {
+    std::string label; // detection label
+    int confidence;     // detection confidence percentage
+    sl::float3 position;  // object 3D centroid
+    std::vector<sl::uint2> bounding_box_2d; // 2D bounding box corners
+    std::vector<sl::float3> bounding_box_3d; // 3D bounding box corners
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr object_3d_pointcloud;
+    bool has_object_3d_pointcloud;
+};
+
+std::vector<DetectedObject> DetectedObjects;
+
+#define SHOW_SEGMENTED 0
 
 void parse_args(int argc, char **argv,InitParameters& param);
 cv::Point resize_boundingbox_coordinates(int x, int y, Resolution display_resolution, Resolution camera_resolution);
@@ -44,24 +65,27 @@ void show_object_detection_on_image(Objects objects, cv::Mat image_zed_ocv, Reso
 shared_ptr<pcl::visualization::PCLVisualizer> createRGBVisualizer(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr cloud);
 inline float convertColor(float colorIn);
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr measurement_to_pcl(sl::Mat measurement, pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud);
-void segment_bounding_box_from_point_cloud(shared_ptr<pcl::visualization::PCLVisualizer> filter_viewer, sl::Objects objects,
+void segment_and_show_bounding_box_from_point_cloud(shared_ptr<pcl::visualization::PCLVisualizer> filter_viewer, sl::Objects objects,
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud, pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_pcl);
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr segment_bounding_box(std::vector<sl::float3> bounding_box_3d, pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud);
 void show_object_detection_on_point_cloud(shared_ptr<pcl::visualization::PCLVisualizer> pcl_viewer, sl::Objects objects);
-
-Mat data_cloud; // container for ZED 2 pointcloud measurement
-int id = 0; // Bounding box PCL id
+void data_association_of_detected_objects(pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud, sl::Objects objects);
+std::vector<int> return_closest_objects(std::vector<DetectedObject> DetectedObjects, DetectedObject newDetectedObject);
+bool sortbysec(tuple<int, float>& a, tuple<int, float>& b);
 
 int main(int argc, char **argv) {
 
     /************************************************/
              /*Camera init*/
+
     Camera zed;
     // Set configuration parameters for the ZED
     InitParameters init_parameters;
     init_parameters.camera_resolution = RESOLUTION::HD2K;
     init_parameters.depth_maximum_distance = 10.0f * 1000.0f;
     init_parameters.depth_mode = DEPTH_MODE::ULTRA;
-    init_parameters.coordinate_system = COORDINATE_SYSTEM::RIGHT_HANDED_Y_UP; // OpenGL's coordinate system is right_handed    
+    init_parameters.coordinate_system = COORDINATE_SYSTEM::RIGHT_HANDED_Y_UP; // OpenGL's coordinate system is right_handed 
+    init_parameters.coordinate_units = UNIT::MILLIMETER;
     parse_args(argc, argv, init_parameters);
     // Open the camera
     auto returned_state = zed.open(init_parameters);
@@ -84,6 +108,7 @@ int main(int argc, char **argv) {
 
     /************************************************/
                 /*Positional tracking init*/
+
     Pose pose;
     POSITIONAL_TRACKING_STATE tracking_state = POSITIONAL_TRACKING_STATE::OFF;
     PositionalTrackingParameters positional_tracking_parameters;
@@ -114,7 +139,7 @@ int main(int argc, char **argv) {
     Objects objects;
     // Detection runtime parameters
     // default detection threshold, apply to all object class
-    int detection_confidence = 70;
+    int detection_confidence = 50;
     ObjectDetectionRuntimeParameters detection_parameters_rt(detection_confidence);
     // To select a set of specific object classes:
     //detection_parameters_rt.object_class_filter = {OBJECT_CLASS::VEHICLE, OBJECT_CLASS::PERSON };
@@ -126,6 +151,7 @@ int main(int argc, char **argv) {
 
     /************************************************/
                 /*Spatial mapping init*/
+
     // Set spatial mapping parameters
     SpatialMappingParameters spatial_mapping_parameters;
     // Request a Point Cloud
@@ -163,18 +189,56 @@ int main(int argc, char **argv) {
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_pcl(new pcl::PointCloud<pcl::PointXYZRGB>);
     // Create the PCL point cloud visualizer
     shared_ptr<pcl::visualization::PCLVisualizer> pcl_viewer = createRGBVisualizer(p_pcl_point_cloud);
+#if SHOW_SEGMENTED  
     shared_ptr<pcl::visualization::PCLVisualizer> filter_viewer = createRGBVisualizer(filtered_pcl);
-
+#endif
     // Set Viewer initial position
     pcl_viewer->setCameraPosition(0, 0, 5, 0, 0, 1, 0, 1, 0);
     pcl_viewer->setCameraClipDistances(0.1, 1000);
+#if SHOW_SEGMENTED 
     filter_viewer->setCameraPosition(0, 0, 5, 0, 0, 1, 0, 1, 0);
     filter_viewer->setCameraClipDistances(0.1, 1000);
+#endif
 
     /************************************************/
+    pcl::PointCloud<pcl::PointXYZ>::Ptr proba_filter1(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr proba_filter2(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::io::loadPLYFile("D:/zed codes/zed_change_pcl/build/0.ply", *proba_filter1);
+    pcl::io::loadPLYFile("D:/zed codes/zed_change_pcl/build/1.ply", *proba_filter2);
+    pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
+    kdtree.setInputCloud(proba_filter1);
+    int K = 1; // K nearest neighbor search
+    std::vector<int> pointIdxNKNSearch(K);
+    std::vector<float> pointNKNSquaredDistance(K);
+    pcl::PointXYZ searchPoint;
+    int jo = 0, mind = 0;
+    for (int nIndex = 0; nIndex < proba_filter2->points.size(); nIndex++)
+    {
+        searchPoint.x = proba_filter2->points[nIndex].x;
+        searchPoint.y = proba_filter2->points[nIndex].y;
+        searchPoint.z = proba_filter2->points[nIndex].z;
+        if (kdtree.nearestKSearch(searchPoint, K, pointIdxNKNSearch, pointNKNSquaredDistance) > 0)
+        {
+            for (std::size_t i = 0; i < pointIdxNKNSearch.size(); ++i){
+                //std::cout << "    " << (*proba_filter1)[pointIdxNKNSearch[i]].x
+                //<< " " << (*proba_filter1)[pointIdxNKNSearch[i]].y
+                //<< " " << (*proba_filter1)[pointIdxNKNSearch[i]].z
+                //<< " (squared distance: " << pointNKNSquaredDistance[i] << ")" << std::endl;
+                if (pointNKNSquaredDistance[i] < 10000) {
+                    jo += 1;
+                }
+            mind += 1;
+            }
+        }
+    }
+    cout << "jo/mind: " << (float)jo / mind << endl;
 
+
+
+    return 0;
     // Start the main loop
     while (!pcl_viewer->wasStopped()) { // viewer.isAvailable()
+        if ((char)cv::waitKey(1) == 27) break; // ESC PRESSED
         // Grab a new image
         if (zed.grab(runtime_parameters) == ERROR_CODE::SUCCESS) {
 
@@ -212,8 +276,12 @@ int main(int argc, char **argv) {
             pcl_viewer->updatePointCloud(p_pcl_point_cloud);
             // Show 3D bounding boxes on point cloud
             show_object_detection_on_point_cloud(pcl_viewer, objects);
+#if SHOW_SEGMENTED 
             // Crop bounding boxes of object from point cloud
-            segment_bounding_box_from_point_cloud(filter_viewer, objects, p_pcl_point_cloud, filtered_pcl);
+            segment_and_show_bounding_box_from_point_cloud(filter_viewer, objects, p_pcl_point_cloud, filtered_pcl);
+#endif
+            // Data association
+            data_association_of_detected_objects(p_pcl_point_cloud, objects);
         }
     }
 
@@ -227,6 +295,101 @@ int main(int argc, char **argv) {
     zed.close();
 
     return 0;
+}
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr segment_bounding_box(std::vector<sl::float3> bounding_box_3d, pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud) {
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_pcl(new pcl::PointCloud<pcl::PointXYZRGB>);
+
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr bounding_box_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+    bounding_box_cloud->points.resize(bounding_box_3d.size());
+    pcl::PointXYZRGB min_point_AABB;
+    pcl::PointXYZRGB max_point_AABB;
+    for (int pont = 0; pont < bounding_box_3d.size(); pont++) {
+        bounding_box_cloud->points[pont].x = bounding_box_3d[pont].x;
+        bounding_box_cloud->points[pont].y = bounding_box_3d[pont].y;
+        bounding_box_cloud->points[pont].z = bounding_box_3d[pont].z;
+    }
+    pcl::getMinMax3D(*bounding_box_cloud, min_point_AABB, max_point_AABB);
+
+    pcl::CropBox<pcl::PointXYZRGB> crop;
+    Eigen::Vector4f min_point = Eigen::Vector4f(min_point_AABB.x, min_point_AABB.y, min_point_AABB.z, 0);
+    Eigen::Vector4f max_point = Eigen::Vector4f(max_point_AABB.x, max_point_AABB.y, max_point_AABB.z, 0);
+    crop.setMin(min_point);
+    crop.setMax(max_point);
+    crop.setInputCloud(p_pcl_point_cloud);
+    crop.filter(*filtered_pcl);
+    return filtered_pcl;
+}
+void data_association_of_detected_objects(pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud, sl::Objects objects) {   
+    if (!objects.object_list.empty()) {
+        for (int index = 0; index < objects.object_list.size(); index++) {
+            DetectedObject newDetectedObject;
+            
+            newDetectedObject.label = (string)sl::toString(objects.object_list[index].sublabel);
+            newDetectedObject.position = objects.object_list[index].position;
+            newDetectedObject.confidence = (int)objects.object_list[index].confidence;
+            newDetectedObject.bounding_box_2d = objects.object_list[index].bounding_box_2d;
+            newDetectedObject.bounding_box_3d = objects.object_list[index].bounding_box;
+            if (!newDetectedObject.bounding_box_3d.empty()) {
+                newDetectedObject.has_object_3d_pointcloud = true;
+                newDetectedObject.object_3d_pointcloud = segment_bounding_box(newDetectedObject.bounding_box_3d, p_pcl_point_cloud);
+
+                //std::string writePath = std::to_string(DetectedObjects.size()) + ".ply";
+                //pcl::io::savePLYFileBinary(writePath, *newDetectedObject.object_3d_pointcloud);
+
+                printf("label: %s\n", newDetectedObject.label);
+                printf("position: %f %f %f\n", newDetectedObject.position[0], newDetectedObject.position[1], newDetectedObject.position[2]);
+                printf("confidence: %d\n", newDetectedObject.confidence);
+            }
+            else {
+                newDetectedObject.has_object_3d_pointcloud = false;
+                std::cout << "NO 3D BOUNDING BOX AVAILABLE" << std::endl;
+            }
+            if (newDetectedObject.has_object_3d_pointcloud == true) {
+                if (DetectedObjects.size() > 0) {
+                    auto ids = return_closest_objects(DetectedObjects, newDetectedObject);
+                    std::cout << "Close objects: " << std::endl;
+                    for (int i = 0; i < ids.size(); i++) {
+                        std::cout << DetectedObjects[ids[i]].label << " " << ids[i] << " ";
+                    }
+                    // Kiválasztani a közelieket egyesével és megnézni a pontfelhõ távolságokat
+                    // nearest neighbor search between the 3D points in the landmark and in the detection	
+                    // A detection is associated to an existing landmark if at least 50 % of its 3D points have a distance of 5 cm or less
+
+                    DetectedObjects.push_back(newDetectedObject);
+                }
+                else {
+                    DetectedObjects.push_back(newDetectedObject);
+                }
+
+            }
+        }
+    }
+}
+
+std::vector<int> return_closest_objects(std::vector<DetectedObject> DetectedObjects, DetectedObject newDetectedObject) {
+    std::vector<int> closest_objects; 
+    std::vector<tuple<int, float>> pairedIndicesAndDistances;
+    auto detected_posi = newDetectedObject.position;
+    for (int i = 0; i < DetectedObjects.size(); i++) {
+        float distance = sqrt(pow(detected_posi.x - DetectedObjects[i].position.x, 2) +
+                              pow(detected_posi.y - DetectedObjects[i].position.y, 2) +
+                              pow(detected_posi.z - DetectedObjects[i].position.z, 2) * 1.0);
+        pairedIndicesAndDistances.push_back(make_tuple(i, distance));
+    }
+    sort(pairedIndicesAndDistances.begin(), pairedIndicesAndDistances.end(), sortbysec);
+    for (int elem = 0; elem < DetectedObjects.size(); elem++) {
+        cout << std::get<1>(pairedIndicesAndDistances[elem]) << endl;
+        if (std::get<1>(pairedIndicesAndDistances[elem]) < 50 ){
+            closest_objects.push_back(elem);
+        }
+    }
+
+    return closest_objects;
+}
+
+// Comparison function to sort the vector elements by second element of tuples
+bool sortbysec(tuple<int, float>& a, tuple<int, float>& b){
+    return (std::get<1>(a) < std::get<1>(b));
 }
 
 void show_object_detection_on_point_cloud(shared_ptr<pcl::visualization::PCLVisualizer> pcl_viewer, sl::Objects objects) {
@@ -256,7 +419,7 @@ void show_object_detection_on_point_cloud(shared_ptr<pcl::visualization::PCLVisu
     pcl_viewer->spinOnce();
 }
 
-void segment_bounding_box_from_point_cloud(shared_ptr<pcl::visualization::PCLVisualizer> filter_viewer, sl::Objects objects,
+void segment_and_show_bounding_box_from_point_cloud(shared_ptr<pcl::visualization::PCLVisualizer> filter_viewer, sl::Objects objects,
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud, pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_pcl) {
     for (int num = 0; num < id; num++){
         filter_viewer->removePointCloud(std::to_string(num));
