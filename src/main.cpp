@@ -1,28 +1,3 @@
-///////////////////////////////////////////////////////////////////////////
-//
-// Copyright (c) 2021, STEREOLABS.
-//
-// All rights reserved.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
-///////////////////////////////////////////////////////////////////////////
-
-/**********************************************************************************
- ** This sample demonstrates how to capture a live 3D reconstruction of a scene  **
- ** as a fused point cloud and display the result in an OpenGL window.           **
- **********************************************************************************/
-
 // ZED includes
 #include <sl/Camera.hpp>
 
@@ -30,6 +5,7 @@
 #include <math.h>
 #include <algorithm>
 #include "GLViewer.hpp"
+#include "ChangeDetection.hpp"
 #include <opencv2/opencv.hpp>
 #include <pcl/common/common_headers.h>
 #include <pcl/visualization/pcl_visualizer.h>
@@ -38,43 +14,21 @@
 #include <pcl/search/search.h>
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/io/ply_io.h>
+
 // Using std and sl namespaces
 using namespace std;
 using namespace sl;
 
-Mat data_cloud; // container for ZED 2 pointcloud measurement
-int id = 0; // Bounding box PCL id
-struct DetectedObject {
-    std::string label; // detection label
-    int confidence;     // detection confidence percentage
-    sl::float3 position;  // object 3D centroid
-    std::vector<sl::uint2> bounding_box_2d; // 2D bounding box corners
-    std::vector<sl::float3> bounding_box_3d; // 3D bounding box corners
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr object_3d_pointcloud;
-    bool has_object_3d_pointcloud;
-};
-
-std::vector<DetectedObject> DetectedObjects;
-
 #define SHOW_SEGMENTED 0
 
-void parse_args(int argc, char **argv,InitParameters& param);
-cv::Point resize_boundingbox_coordinates(int x, int y, Resolution display_resolution, Resolution camera_resolution);
 void print(std::string msg_prefix, sl::ERROR_CODE err_code = sl::ERROR_CODE::SUCCESS, std::string msg_suffix = "");
-void show_object_detection_on_image(Objects objects, cv::Mat image_zed_ocv, Resolution display_resolution, Resolution camera_resolution);
-shared_ptr<pcl::visualization::PCLVisualizer> createRGBVisualizer(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr cloud);
-inline float convertColor(float colorIn);
-pcl::PointCloud<pcl::PointXYZRGB>::Ptr measurement_to_pcl(sl::Mat measurement, pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud);
-void segment_and_show_bounding_box_from_point_cloud(shared_ptr<pcl::visualization::PCLVisualizer> filter_viewer, sl::Objects objects,
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud, pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_pcl);
-pcl::PointCloud<pcl::PointXYZRGB>::Ptr segment_bounding_box(std::vector<sl::float3> bounding_box_3d, pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud);
-void show_object_detection_on_point_cloud(shared_ptr<pcl::visualization::PCLVisualizer> pcl_viewer, sl::Objects objects);
-void data_association_of_detected_objects(pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud, sl::Objects objects);
-std::vector<int> return_closest_objects(std::vector<DetectedObject> DetectedObjects, DetectedObject newDetectedObject);
-bool sortbysec(tuple<int, float>& a, tuple<int, float>& b);
+void parse_args(int argc, char **argv,InitParameters& param);
 
 int main(int argc, char **argv) {
-
+    Mat data_cloud; // container for ZED 2 pointcloud measurement
+    ChangeDetector changedetector;
+    std::vector<ChangeDetector::DetectedObject> DetectedObjects;
+    int id = 0; // Bounding box PCL id
     /************************************************/
              /*Camera init*/
 
@@ -121,6 +75,7 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
     /************************************************/
+
 
     /************************************************/
                  /*Object detection init*/
@@ -188,54 +143,19 @@ int main(int argc, char **argv) {
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_pcl(new pcl::PointCloud<pcl::PointXYZRGB>);
     // Create the PCL point cloud visualizer
-    shared_ptr<pcl::visualization::PCLVisualizer> pcl_viewer = createRGBVisualizer(p_pcl_point_cloud);
-#if SHOW_SEGMENTED  
-    shared_ptr<pcl::visualization::PCLVisualizer> filter_viewer = createRGBVisualizer(filtered_pcl);
-#endif
+    shared_ptr<pcl::visualization::PCLVisualizer> pcl_viewer = changedetector.createRGBVisualizer(p_pcl_point_cloud);
+
     // Set Viewer initial position
     pcl_viewer->setCameraPosition(0, 0, 5, 0, 0, 1, 0, 1, 0);
     pcl_viewer->setCameraClipDistances(0.1, 1000);
-#if SHOW_SEGMENTED 
+#if SHOW_SEGMENTED
+    shared_ptr<pcl::visualization::PCLVisualizer> filter_viewer = changedetector.createRGBVisualizer(filtered_pcl);
     filter_viewer->setCameraPosition(0, 0, 5, 0, 0, 1, 0, 1, 0);
     filter_viewer->setCameraClipDistances(0.1, 1000);
 #endif
 
     /************************************************/
-    pcl::PointCloud<pcl::PointXYZ>::Ptr proba_filter1(new pcl::PointCloud<pcl::PointXYZ>);
-    pcl::PointCloud<pcl::PointXYZ>::Ptr proba_filter2(new pcl::PointCloud<pcl::PointXYZ>);
-    pcl::io::loadPLYFile("D:/zed codes/zed_change_pcl/build/0.ply", *proba_filter1);
-    pcl::io::loadPLYFile("D:/zed codes/zed_change_pcl/build/1.ply", *proba_filter2);
-    pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
-    kdtree.setInputCloud(proba_filter1);
-    int K = 1; // K nearest neighbor search
-    std::vector<int> pointIdxNKNSearch(K);
-    std::vector<float> pointNKNSquaredDistance(K);
-    pcl::PointXYZ searchPoint;
-    int jo = 0, mind = 0;
-    for (int nIndex = 0; nIndex < proba_filter2->points.size(); nIndex++)
-    {
-        searchPoint.x = proba_filter2->points[nIndex].x;
-        searchPoint.y = proba_filter2->points[nIndex].y;
-        searchPoint.z = proba_filter2->points[nIndex].z;
-        if (kdtree.nearestKSearch(searchPoint, K, pointIdxNKNSearch, pointNKNSquaredDistance) > 0)
-        {
-            for (std::size_t i = 0; i < pointIdxNKNSearch.size(); ++i){
-                //std::cout << "    " << (*proba_filter1)[pointIdxNKNSearch[i]].x
-                //<< " " << (*proba_filter1)[pointIdxNKNSearch[i]].y
-                //<< " " << (*proba_filter1)[pointIdxNKNSearch[i]].z
-                //<< " (squared distance: " << pointNKNSquaredDistance[i] << ")" << std::endl;
-                if (pointNKNSquaredDistance[i] < 10000) {
-                    jo += 1;
-                }
-            mind += 1;
-            }
-        }
-    }
-    cout << "jo/mind: " << (float)jo / mind << endl;
 
-
-
-    return 0;
     // Start the main loop
     while (!pcl_viewer->wasStopped()) { // viewer.isAvailable()
         if ((char)cv::waitKey(1) == 27) break; // ESC PRESSED
@@ -267,21 +187,24 @@ int main(int argc, char **argv) {
                 }
             }
             // Show 2D bounding boxes on image frames
-            show_object_detection_on_image(objects, image_zed_ocv, display_resolution, resolution);
+            changedetector.show_object_detection_on_image(objects, image_zed_ocv, display_resolution, resolution);
             // Retrieve pointcloud generated by ZED2
             zed.retrieveMeasure(data_cloud, MEASURE::XYZRGBA, MEM::CPU, display_resolution);
+
             // Convert ZED2 pointcloud to PCL format
-            p_pcl_point_cloud = measurement_to_pcl(data_cloud, p_pcl_point_cloud);
+            changedetector.measurement_to_pcl(data_cloud, p_pcl_point_cloud);
+
             // Send PCL point cloud to PCL viewer
             pcl_viewer->updatePointCloud(p_pcl_point_cloud);
+
             // Show 3D bounding boxes on point cloud
-            show_object_detection_on_point_cloud(pcl_viewer, objects);
+            changedetector.show_object_detection_on_point_cloud(pcl_viewer, objects, id);
 #if SHOW_SEGMENTED 
             // Crop bounding boxes of object from point cloud
-            segment_and_show_bounding_box_from_point_cloud(filter_viewer, objects, p_pcl_point_cloud, filtered_pcl);
+            segment_and_show_bounding_box_from_point_cloud(filter_viewer, objects, p_pcl_point_cloud, filtered_pcl, id);
 #endif
             // Data association
-            data_association_of_detected_objects(p_pcl_point_cloud, objects);
+            changedetector.data_association_of_detected_objects(p_pcl_point_cloud, objects, DetectedObjects);
         }
     }
 
@@ -296,215 +219,8 @@ int main(int argc, char **argv) {
 
     return 0;
 }
-pcl::PointCloud<pcl::PointXYZRGB>::Ptr segment_bounding_box(std::vector<sl::float3> bounding_box_3d, pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud) {
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_pcl(new pcl::PointCloud<pcl::PointXYZRGB>);
 
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr bounding_box_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-    bounding_box_cloud->points.resize(bounding_box_3d.size());
-    pcl::PointXYZRGB min_point_AABB;
-    pcl::PointXYZRGB max_point_AABB;
-    for (int pont = 0; pont < bounding_box_3d.size(); pont++) {
-        bounding_box_cloud->points[pont].x = bounding_box_3d[pont].x;
-        bounding_box_cloud->points[pont].y = bounding_box_3d[pont].y;
-        bounding_box_cloud->points[pont].z = bounding_box_3d[pont].z;
-    }
-    pcl::getMinMax3D(*bounding_box_cloud, min_point_AABB, max_point_AABB);
-
-    pcl::CropBox<pcl::PointXYZRGB> crop;
-    Eigen::Vector4f min_point = Eigen::Vector4f(min_point_AABB.x, min_point_AABB.y, min_point_AABB.z, 0);
-    Eigen::Vector4f max_point = Eigen::Vector4f(max_point_AABB.x, max_point_AABB.y, max_point_AABB.z, 0);
-    crop.setMin(min_point);
-    crop.setMax(max_point);
-    crop.setInputCloud(p_pcl_point_cloud);
-    crop.filter(*filtered_pcl);
-    return filtered_pcl;
-}
-void data_association_of_detected_objects(pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud, sl::Objects objects) {   
-    if (!objects.object_list.empty()) {
-        for (int index = 0; index < objects.object_list.size(); index++) {
-            DetectedObject newDetectedObject;
-            
-            newDetectedObject.label = (string)sl::toString(objects.object_list[index].sublabel);
-            newDetectedObject.position = objects.object_list[index].position;
-            newDetectedObject.confidence = (int)objects.object_list[index].confidence;
-            newDetectedObject.bounding_box_2d = objects.object_list[index].bounding_box_2d;
-            newDetectedObject.bounding_box_3d = objects.object_list[index].bounding_box;
-            if (!newDetectedObject.bounding_box_3d.empty()) {
-                newDetectedObject.has_object_3d_pointcloud = true;
-                newDetectedObject.object_3d_pointcloud = segment_bounding_box(newDetectedObject.bounding_box_3d, p_pcl_point_cloud);
-
-                //std::string writePath = std::to_string(DetectedObjects.size()) + ".ply";
-                //pcl::io::savePLYFileBinary(writePath, *newDetectedObject.object_3d_pointcloud);
-
-                printf("label: %s\n", newDetectedObject.label);
-                printf("position: %f %f %f\n", newDetectedObject.position[0], newDetectedObject.position[1], newDetectedObject.position[2]);
-                printf("confidence: %d\n", newDetectedObject.confidence);
-            }
-            else {
-                newDetectedObject.has_object_3d_pointcloud = false;
-                std::cout << "NO 3D BOUNDING BOX AVAILABLE" << std::endl;
-            }
-            if (newDetectedObject.has_object_3d_pointcloud == true) {
-                if (DetectedObjects.size() > 0) {
-                    auto ids = return_closest_objects(DetectedObjects, newDetectedObject);
-                    std::cout << "Close objects: " << std::endl;
-                    for (int i = 0; i < ids.size(); i++) {
-                        std::cout << DetectedObjects[ids[i]].label << " " << ids[i] << " ";
-                    }
-                    // Kiválasztani a közelieket egyesével és megnézni a pontfelhõ távolságokat
-                    // nearest neighbor search between the 3D points in the landmark and in the detection	
-                    // A detection is associated to an existing landmark if at least 50 % of its 3D points have a distance of 5 cm or less
-
-                    DetectedObjects.push_back(newDetectedObject);
-                }
-                else {
-                    DetectedObjects.push_back(newDetectedObject);
-                }
-
-            }
-        }
-    }
-}
-
-std::vector<int> return_closest_objects(std::vector<DetectedObject> DetectedObjects, DetectedObject newDetectedObject) {
-    std::vector<int> closest_objects; 
-    std::vector<tuple<int, float>> pairedIndicesAndDistances;
-    auto detected_posi = newDetectedObject.position;
-    for (int i = 0; i < DetectedObjects.size(); i++) {
-        float distance = sqrt(pow(detected_posi.x - DetectedObjects[i].position.x, 2) +
-                              pow(detected_posi.y - DetectedObjects[i].position.y, 2) +
-                              pow(detected_posi.z - DetectedObjects[i].position.z, 2) * 1.0);
-        pairedIndicesAndDistances.push_back(make_tuple(i, distance));
-    }
-    sort(pairedIndicesAndDistances.begin(), pairedIndicesAndDistances.end(), sortbysec);
-    for (int elem = 0; elem < DetectedObjects.size(); elem++) {
-        cout << std::get<1>(pairedIndicesAndDistances[elem]) << endl;
-        if (std::get<1>(pairedIndicesAndDistances[elem]) < 50 ){
-            closest_objects.push_back(elem);
-        }
-    }
-
-    return closest_objects;
-}
-
-// Comparison function to sort the vector elements by second element of tuples
-bool sortbysec(tuple<int, float>& a, tuple<int, float>& b){
-    return (std::get<1>(a) < std::get<1>(b));
-}
-
-void show_object_detection_on_point_cloud(shared_ptr<pcl::visualization::PCLVisualizer> pcl_viewer, sl::Objects objects) {
-    for (int num = 0; num < id; num++){
-        pcl_viewer->removeShape(std::to_string(num));
-    }
-    if (!objects.object_list.empty()) {
-        for (int index = 0; index < objects.object_list.size(); index++) {
-            auto bb = objects.object_list[index].bounding_box;
-            if (!bb.empty()) {
-                pcl::PointCloud<pcl::PointXYZRGB>::Ptr bounding_box_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-                bounding_box_cloud->points.resize(bb.size());
-                for (int pont = 0; pont < bb.size(); pont++) {
-                    bounding_box_cloud->points[pont].x = bb[pont].x;
-                    bounding_box_cloud->points[pont].y = bb[pont].y;
-                    bounding_box_cloud->points[pont].z = bb[pont].z;
-                }
-                pcl::PointXYZRGB min_point_AABB;
-                pcl::PointXYZRGB max_point_AABB;
-                pcl::getMinMax3D(*bounding_box_cloud, min_point_AABB, max_point_AABB);
-                pcl_viewer->addCube(min_point_AABB.x, max_point_AABB.x, min_point_AABB.y, max_point_AABB.y, min_point_AABB.z, max_point_AABB.z, 255, 0, 0, std::to_string(id));
-                pcl_viewer->setRepresentationToWireframeForAllActors();
-                id += 1;
-            }
-        }
-    }
-    pcl_viewer->spinOnce();
-}
-
-void segment_and_show_bounding_box_from_point_cloud(shared_ptr<pcl::visualization::PCLVisualizer> filter_viewer, sl::Objects objects,
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud, pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_pcl) {
-    for (int num = 0; num < id; num++){
-        filter_viewer->removePointCloud(std::to_string(num));
-    }
-    if (!objects.object_list.empty()) {
-        for (int index = 0; index < objects.object_list.size(); index++) {
-            auto bb = objects.object_list[index].bounding_box;
-            if (!bb.empty()) {
-                pcl::PointCloud<pcl::PointXYZRGB>::Ptr bounding_box_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-                bounding_box_cloud->points.resize(bb.size());
-                pcl::PointXYZRGB min_point_AABB;
-                pcl::PointXYZRGB max_point_AABB;
-                for (int pont = 0; pont < bb.size(); pont++) {
-                    bounding_box_cloud->points[pont].x = bb[pont].x;
-                    bounding_box_cloud->points[pont].y = bb[pont].y;
-                    bounding_box_cloud->points[pont].z = bb[pont].z;
-                }
-                pcl::getMinMax3D(*bounding_box_cloud, min_point_AABB, max_point_AABB);
-
-                pcl::CropBox<pcl::PointXYZRGB> crop;
-                Eigen::Vector4f min_point = Eigen::Vector4f(min_point_AABB.x, min_point_AABB.y, min_point_AABB.z, 0);
-                Eigen::Vector4f max_point = Eigen::Vector4f(max_point_AABB.x, max_point_AABB.y, max_point_AABB.z, 0);
-                crop.setMin(min_point);
-                crop.setMax(max_point);
-                crop.setInputCloud(p_pcl_point_cloud);
-                crop.filter(*filtered_pcl);
-                filter_viewer->addPointCloud(filtered_pcl, std::to_string(id));
-
-                id += 1;
-            }
-        }
-    }
-    filter_viewer->spinOnce();
-}
-
-pcl::PointCloud<pcl::PointXYZRGB>::Ptr measurement_to_pcl(sl::Mat measurement, pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud) {
-    p_pcl_point_cloud->points.resize(measurement.getHeight() * measurement.getWidth());
-    int index = 0;
-    for (int w = 0; w < measurement.getWidth(); w++) {
-        for (int h = 0; h < measurement.getHeight(); h++) {
-            sl::float4 pixel;
-            measurement.getValue(w, h, &pixel);
-            if (!isValidMeasure(pixel.x)) {
-                p_pcl_point_cloud->points[index].x = 0;
-                p_pcl_point_cloud->points[index].y = 0;
-                p_pcl_point_cloud->points[index].z = 0;
-                p_pcl_point_cloud->points[index].rgb = 0;
-            }
-            else {
-                p_pcl_point_cloud->points[index].x = pixel.x;
-                p_pcl_point_cloud->points[index].y = pixel.y;
-                p_pcl_point_cloud->points[index].z = pixel.z;
-                p_pcl_point_cloud->points[index].rgb = convertColor(pixel[3]);
-            }
-            index += 1;
-        }
-    }
-    return p_pcl_point_cloud;
-}
-void show_object_detection_on_image(Objects objects, cv::Mat image_zed_ocv, Resolution display_resolution, Resolution camera_resolution) {
-    if (!objects.object_list.empty()) {
-        for (int index = 0; index < objects.object_list.size(); index++) {
-            auto label = objects.object_list[index].sublabel;
-            auto confidence = objects.object_list[index].confidence;
-            auto bounding_box = objects.object_list.at(index).bounding_box_2d;
-            string cv_text = (string)sl::toString(label) + " " + std::to_string((int)confidence) + "%";
-            cv::rectangle(image_zed_ocv, resize_boundingbox_coordinates(bounding_box[0].x, bounding_box[0].y, display_resolution, camera_resolution),
-                resize_boundingbox_coordinates(bounding_box[2].x, bounding_box[2].y, display_resolution, camera_resolution), cv::Scalar(255, 0, 0));
-            cv::putText(image_zed_ocv, cv_text, resize_boundingbox_coordinates(bounding_box[0].x, bounding_box[0].y - 10, display_resolution, camera_resolution), cv::FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(255, 0, 0), 1);
-        }
-    }
-    cv::imshow("ZED View", image_zed_ocv);
-    cv::waitKey(15);
-}
-
-cv::Point resize_boundingbox_coordinates(int x, int y, Resolution display_resolution, Resolution camera_resolution) {
-    float ratio_width = (float)((float)display_resolution.width / camera_resolution.width);
-    float ratio_height = (float)((float)display_resolution.height / camera_resolution.height);
-    float x_new = (float)((float)x * ratio_width);
-    float y_new = (float)((float)y * ratio_height);
-    return cv::Point(int(x_new), int(y_new));
-}
-
-void parse_args(int argc, char **argv,InitParameters& param)
-{
+void parse_args(int argc, char **argv,InitParameters& param){
     if (argc > 1 && string(argv[1]).find(".svo")!=string::npos) {
         // SVO input mode
         param.input.setFromSVOFile(argv[1]);
@@ -557,29 +273,4 @@ void print(std::string msg_prefix, sl::ERROR_CODE err_code, std::string msg_suff
     if (!msg_suffix.empty())
         cout << " " << msg_suffix;
     cout << endl;
-}
-
-/**
- *  This function creates a PCL visualizer
- **/
-shared_ptr<pcl::visualization::PCLVisualizer> createRGBVisualizer(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr cloud) {
-    // Open 3D viewer and add point cloud
-    shared_ptr<pcl::visualization::PCLVisualizer> viewer(new pcl::visualization::PCLVisualizer("PCL ZED 3D Viewer"));
-    viewer->setBackgroundColor(0.12, 0.12, 0.12);
-    pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(cloud);
-    viewer->addPointCloud<pcl::PointXYZRGB>(cloud, rgb);
-    viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.5);
-    viewer->addCoordinateSystem(1.0);
-    viewer->initCameraParameters();
-    return (viewer);
-}
-
-/**
- *  This function convert a RGBA color packed into a packed RGBA PCL compatible format
- **/
-inline float convertColor(float colorIn) {
-    uint32_t color_uint = *(uint32_t*)&colorIn;
-    unsigned char* color_uchar = (unsigned char*)&color_uint;
-    color_uint = ((uint32_t)color_uchar[0] << 16 | (uint32_t)color_uchar[1] << 8 | (uint32_t)color_uchar[2]);
-    return *reinterpret_cast<float*> (&color_uint);
 }
