@@ -321,7 +321,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <ClInclude Include="D:\zed codes\zed_change_pcl\include\GLViewer.hpp" />
     <ClInclude Include="D:\zed codes\zed_change_pcl\include\ZEDModel.hpp" />
     <ClInclude Include="D:\zed codes\zed_change_pcl\include\utils.hpp" />
-    <ClCompile Include="ChangeDetection.cpp" />
+    <ClCompile Include="..\src\ChangeDetection.cpp" />
     <ClCompile Include="D:\zed codes\zed_change_pcl\src\GLViewer.cpp" />
     <ClCompile Include="D:\zed codes\zed_change_pcl\src\main.cpp" />
   </ItemGroup>

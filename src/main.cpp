@@ -25,9 +25,11 @@ void print(std::string msg_prefix, sl::ERROR_CODE err_code = sl::ERROR_CODE::SUC
 void parse_args(int argc, char **argv,InitParameters& param);
 void print_object_map(std::vector<ChangeDetector::DetectedObject>& DetectedObjects);
 
+ChangeDetector changedetector;
+
 int main(int argc, char **argv) {
     Mat data_cloud; // container for ZED 2 pointcloud measurement
-    ChangeDetector changedetector;
+
     std::vector<ChangeDetector::DetectedObject> DetectedObjects;
     int id = 0; // Bounding box PCL id
     /************************************************/
@@ -37,7 +39,8 @@ int main(int argc, char **argv) {
     // Set configuration parameters for the ZED
     InitParameters init_parameters;
     init_parameters.camera_resolution = RESOLUTION::HD2K;
-    init_parameters.depth_maximum_distance = 10.0f * 1000.0f;
+    init_parameters.depth_maximum_distance = 5.0f * 1000.0f;
+    init_parameters.depth_minimum_distance = 1000.0f;
     init_parameters.depth_mode = DEPTH_MODE::ULTRA;
     init_parameters.coordinate_system = COORDINATE_SYSTEM::RIGHT_HANDED_Y_UP; // OpenGL's coordinate system is right_handed 
     init_parameters.coordinate_units = UNIT::MILLIMETER;
@@ -114,8 +117,9 @@ int main(int argc, char **argv) {
     spatial_mapping_parameters.map_type = SpatialMappingParameters::SPATIAL_MAP_TYPE::FUSED_POINT_CLOUD;
     // Set mapping range, it will set the resolution accordingly (a higher range, a lower resolution)
     spatial_mapping_parameters.set(SpatialMappingParameters::MAPPING_RANGE::LONG);
+    spatial_mapping_parameters.set(SpatialMappingParameters::MAPPING_RESOLUTION::HIGH);
     // Request partial updates only (only the lastest updated chunks need to be re-draw)
-    spatial_mapping_parameters.use_chunk_only = true;
+    spatial_mapping_parameters.use_chunk_only = false;
     // Start the spatial mapping
     zed.enableSpatialMapping(spatial_mapping_parameters);
     /************************************************/
@@ -126,7 +130,9 @@ int main(int argc, char **argv) {
     // Setup runtime parameters
     RuntimeParameters runtime_parameters;
     // Use low depth confidence avoid introducing noise in the constructed model
-    runtime_parameters.confidence_threshold = 50;
+    runtime_parameters.confidence_threshold = 100;
+    runtime_parameters.sensing_mode = SENSING_MODE::STANDARD;
+    runtime_parameters.measure3D_reference_frame = REFERENCE_FRAME::WORLD;
 
 
     auto resolution = camera_infos.camera_configuration.resolution;
@@ -147,7 +153,7 @@ int main(int argc, char **argv) {
     shared_ptr<pcl::visualization::PCLVisualizer> pcl_viewer = changedetector.createRGBVisualizer(p_pcl_point_cloud);
 
     // Set Viewer initial position
-    pcl_viewer->setCameraPosition(0, 0, 5, 0, 0, 1, 0, 1, 0);
+    // pcl_viewer->setCameraPosition(0, 0, 5, 0, 0, 1, 0, 1, 0);
     pcl_viewer->setCameraClipDistances(0.1, 1000);
 #if SHOW_SEGMENTED
     shared_ptr<pcl::visualization::PCLVisualizer> filter_viewer = changedetector.createRGBVisualizer(filtered_pcl);
@@ -156,7 +162,7 @@ int main(int argc, char **argv) {
 #endif
 
     /************************************************/
-
+    int pcl_id = 5000;
     // Start the main loop
     while (!pcl_viewer->wasStopped()) { // viewer.isAvailable()
         if ((char)cv::waitKey(1) == 27) break; // ESC PRESSED
@@ -200,13 +206,15 @@ int main(int argc, char **argv) {
             changedetector.measurement_to_pcl(data_cloud, p_pcl_point_cloud);
 
             // Send PCL point cloud to PCL viewer
-            pcl_viewer->updatePointCloud(p_pcl_point_cloud);
-
+            pcl_viewer->addPointCloud(p_pcl_point_cloud, std::to_string(pcl_id));
+            //pcl_viewer->resetCamera();
+            //pcl_viewer->resetCameraViewpoint(std::to_string(pcl_id));
+            pcl_id += 1;
             // Show 3D bounding boxes on point cloud
             changedetector.show_object_detection_on_point_cloud(pcl_viewer, objects, id);
 
             // Data association
-            changedetector.data_association_of_detected_objects(p_pcl_point_cloud, objects, DetectedObjects, 500, 10000); //eucl_dist and kd_dist
+            changedetector.data_association_of_detected_objects(p_pcl_point_cloud, objects, DetectedObjects, 1000, 10000, false); //eucl_dist and kd_dist and verbose
         }
     }
     // Final assignment of labels and confidences 
@@ -215,9 +223,9 @@ int main(int argc, char **argv) {
     print_object_map(DetectedObjects);
 
     // Save generated point cloud
-    map.save("szoba", MESH_FILE_FORMAT::PLY);
+    map.save("otthon2", MESH_FILE_FORMAT::PLY);
 
-    changedetector.visualize_end_result("D:/zed codes/zed_change_pcl/build/szoba.ply", DetectedObjects);
+    changedetector.visualize_end_result("D:/zed codes/zed_change_pcl/build/otthon2.ply", DetectedObjects);
 
     //zed.saveAreaMap("otthon.area");
 
@@ -234,23 +242,24 @@ void print_object_map(std::vector<ChangeDetector::DetectedObject>& DetectedObjec
     for (int i = 0; i < DetectedObjects.size(); i++) {
         printf("id: %d\n", i);
 
-        printf("label-conf-detection trio\n");
-        for (auto& e : DetectedObjects[i].label_confidence_pair) {
-            std::map<std::string, int>::iterator it3 = DetectedObjects[i].label_detection_num_pair.find(e.first);
-            std::cout << '{' << e.first << ", " << e.second / it3->second << ", " << it3->second << '}' << '\n';
-        }
+        //printf("label-conf-detection trio\n");
+        //for (auto& e : DetectedObjects[i].label_confidence_pair) {
+        //    std::map<std::string, int>::iterator it3 = DetectedObjects[i].label_detection_num_pair.find(e.first);
+        //    std::cout << '{' << e.first << ", " << e.second / it3->second << ", " << it3->second << '}' << '\n';
+        //}
 
         printf("label: %s\n", DetectedObjects[i].label);
+        printf("num of detections: %d\n", DetectedObjects[i].overall_detection_num);
         printf("confidence: %d\n", DetectedObjects[i].confidence);
         printf("position: %f %f %f\n", DetectedObjects[i].position[0], DetectedObjects[i].position[1], DetectedObjects[i].position[2]);
-        printf("bounding box 2d\n");
-        for (int bb = 0; bb < DetectedObjects[i].bounding_box_2d.size(); bb++) {
-            std::cout << DetectedObjects[i].bounding_box_2d[bb].x << " " << DetectedObjects[i].bounding_box_2d[bb].y << std::endl;
-        }
-        printf("bounding box 3d\n");
-        for (int bb = 0; bb < DetectedObjects[i].bounding_box_3d.size(); bb++) {
-            std::cout << DetectedObjects[i].bounding_box_3d[bb].x << " " << DetectedObjects[i].bounding_box_3d[bb].y << " " << DetectedObjects[i].bounding_box_3d[bb].z << std::endl;
-        }
+        //printf("bounding box 2d\n");
+        //for (int bb = 0; bb < DetectedObjects[i].bounding_box_2d.size(); bb++) {
+        //    std::cout << DetectedObjects[i].bounding_box_2d[bb].x << " " << DetectedObjects[i].bounding_box_2d[bb].y << std::endl;
+        //}
+        //printf("bounding box 3d\n");
+        //for (int bb = 0; bb < DetectedObjects[i].bounding_box_3d.size(); bb++) {
+        //    std::cout << DetectedObjects[i].bounding_box_3d[bb].x << " " << DetectedObjects[i].bounding_box_3d[bb].y << " " << DetectedObjects[i].bounding_box_3d[bb].z << std::endl;
+        //}
         printf("has pcl %d\n", DetectedObjects[i].has_object_3d_pointcloud);
     }
 }

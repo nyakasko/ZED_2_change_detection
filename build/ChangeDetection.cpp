@@ -218,31 +218,31 @@ float ChangeDetector::knn_search(pcl::PointCloud<pcl::PointXYZRGB>::Ptr pcl_ref,
     pcl::copyPointCloud(*pcl_sample, *pcl_sample_xyz);
     pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
     kdtree.setInputCloud(pcl_ref_xyz);
-int K = 1; // K nearest neighbor search
-std::vector<int> pointIdxNKNSearch(K);
-std::vector<float> pointNKNSquaredDistance(K);
-pcl::PointXYZ searchPoint;
-int within_distance_num = 0;
-for (int nIndex = 0; nIndex < pcl_sample_xyz->points.size(); nIndex++)
-{
-    searchPoint.x = pcl_sample_xyz->points[nIndex].x;
-    searchPoint.y = pcl_sample_xyz->points[nIndex].y;
-    searchPoint.z = pcl_sample_xyz->points[nIndex].z;
-    if (kdtree.nearestKSearch(searchPoint, K, pointIdxNKNSearch, pointNKNSquaredDistance) > 0)
+    int K = 1; // K nearest neighbor search
+    std::vector<int> pointIdxNKNSearch(K);
+    std::vector<float> pointNKNSquaredDistance(K);
+    pcl::PointXYZ searchPoint;
+    int within_distance_num = 0;
+    for (int nIndex = 0; nIndex < pcl_sample_xyz->points.size(); nIndex++)
     {
-        for (std::size_t i = 0; i < pointIdxNKNSearch.size(); ++i) {
-            //std::cout << "    " << (*proba_filter1)[pointIdxNKNSearch[i]].x
-            //<< " " << (*proba_filter1)[pointIdxNKNSearch[i]].y
-            //<< " " << (*proba_filter1)[pointIdxNKNSearch[i]].z
-            //<< " (squared distance: " << pointNKNSquaredDistance[i] << ")" << std::endl;
-            if (pointNKNSquaredDistance[i] < distance) {
-                within_distance_num += 1;
+        searchPoint.x = pcl_sample_xyz->points[nIndex].x;
+        searchPoint.y = pcl_sample_xyz->points[nIndex].y;
+        searchPoint.z = pcl_sample_xyz->points[nIndex].z;
+        if (kdtree.nearestKSearch(searchPoint, K, pointIdxNKNSearch, pointNKNSquaredDistance) > 0)
+        {
+            for (std::size_t i = 0; i < pointIdxNKNSearch.size(); ++i) {
+                //std::cout << "    " << (*proba_filter1)[pointIdxNKNSearch[i]].x
+                //<< " " << (*proba_filter1)[pointIdxNKNSearch[i]].y
+                //<< " " << (*proba_filter1)[pointIdxNKNSearch[i]].z
+                //<< " (squared distance: " << pointNKNSquaredDistance[i] << ")" << std::endl;
+                if (pointNKNSquaredDistance[i] < distance) {
+                    within_distance_num += 1;
+                }
             }
         }
     }
-}
-float percentage = (float)within_distance_num / pcl_sample_xyz->points.size();
-return percentage;
+    float percentage = (float)within_distance_num / pcl_sample_xyz->points.size();
+    return percentage;
 }
 
 /**
@@ -264,10 +264,12 @@ std::vector<int> ChangeDetector::return_closest_objects(std::vector<ChangeDetect
     }
     sort(pairedIndicesAndDistances.begin(), pairedIndicesAndDistances.end(), sortbysec);
     for (int elem = 0; elem < DetectedObjects.size(); elem++) {
-        if (verbose) std::cout << "Distance to " << DetectedObjects[std::get<0>(pairedIndicesAndDistances[elem])].label
-            << " " << std::get<0>(pairedIndicesAndDistances[elem]) << " stored element: " << std::get<1>(pairedIndicesAndDistances[elem]) << std::endl;
+        if (verbose) {
+            std::cout << "Distance to " << DetectedObjects[std::get<0>(pairedIndicesAndDistances[elem])].label
+                << " " << std::get<0>(pairedIndicesAndDistances[elem]) << " stored element: " << std::get<1>(pairedIndicesAndDistances[elem]) << std::endl;
+        }
         if (std::get<1>(pairedIndicesAndDistances[elem]) < centroid_distance) {
-            closest_objects.push_back(elem);
+            closest_objects.push_back(std::get<0>(pairedIndicesAndDistances[elem]));
         }
     }
     return closest_objects;
@@ -290,7 +292,10 @@ bool sortbysec(std::tuple<int, float>& a, std::tuple<int, float>& b) {
  * input3: already detected, stored objects
  **/
 void ChangeDetector::data_association_of_detected_objects(pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud, sl::Objects objects,
-    std::vector<ChangeDetector::DetectedObject>& DetectedObjects, int eucl_dist, int kd_dis) {
+    std::vector<ChangeDetector::DetectedObject>& DetectedObjects, int eucl_dist, int kd_dis, bool verbose = false) {
+    HANDLE  hConsole;
+    hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+
     bool should_print = true;
     if (!objects.object_list.empty()) {
         for (int index = 0; index < objects.object_list.size(); index++) {
@@ -306,29 +311,37 @@ void ChangeDetector::data_association_of_detected_objects(pcl::PointCloud<pcl::P
             if (!newDetectedObject.bounding_box_3d.empty()) {
                 newDetectedObject.has_object_3d_pointcloud = true;
                 newDetectedObject.object_3d_pointcloud = segment_bounding_box(newDetectedObject.bounding_box_3d, p_pcl_point_cloud);
+                if (verbose) {
+                    printf("label: %s\n", newDetectedObject.label);
+                    printf("position: %f %f %f\n", newDetectedObject.position[0], newDetectedObject.position[1], newDetectedObject.position[2]);
+                    printf("confidence: %d\n", newDetectedObject.confidence);
+                }
 
-                printf("label: %s\n", newDetectedObject.label);
-                printf("position: %f %f %f\n", newDetectedObject.position[0], newDetectedObject.position[1], newDetectedObject.position[2]);
-                printf("confidence: %d\n", newDetectedObject.confidence);
             }
             else {
                 newDetectedObject.has_object_3d_pointcloud = false;
-                std::cout << "NO 3D BOUNDING BOX AVAILABLE" << std::endl;
+                if (verbose) std::cout << "NO 3D BOUNDING BOX AVAILABLE" << std::endl;
             }
-            if (newDetectedObject.has_object_3d_pointcloud == true) {
+            if (newDetectedObject.has_object_3d_pointcloud == true && newDetectedObject.object_3d_pointcloud->points.size() > 0) {
                 if (DetectedObjects.size() > 0) {
-                    auto ids = return_closest_objects(DetectedObjects, newDetectedObject, eucl_dist, true); // distance of bounding box centroids
+                    auto ids = return_closest_objects(DetectedObjects, newDetectedObject, eucl_dist, verbose); // distance of bounding box centroids
+                    std::string writePath = "D:/zed codes/zed_change_pcl/build/obj_pcls/" + newDetectedObject.label + "_" + std::to_string(DetectedObjects.size()) + ".ply";
+                    pcl::io::savePLYFileBinary(writePath, *newDetectedObject.object_3d_pointcloud);
                     if (ids.size() == 0) {
+                        if (verbose) {
+                            SetConsoleTextAttribute(hConsole, 2);
+                            printf("Added new object %s with id [%d], because there were no close objects.\n", newDetectedObject.label, DetectedObjects.size());
+                            SetConsoleTextAttribute(hConsole, 15);
+                        }
                         DetectedObjects.push_back(newDetectedObject);
-                        printf("Added new object %s with id [%d], because there were no close objects.\n", newDetectedObject.label, DetectedObjects.size());
                     }
                     else {
-                        std::cout << "Close objects: " << std::endl;
+                        if (verbose) std::cout << "Close objects: " << std::endl;
                         should_print = true;
                         for (int i = 0; i < ids.size(); i++) {
-                            std::cout << DetectedObjects[ids[i]].label << " " << ids[i] << " ";
+                            if (verbose) std::cout << DetectedObjects[ids[i]].label << " " << ids[i] << " ";
                             float percentage = knn_search(DetectedObjects[ids[i]].object_3d_pointcloud, newDetectedObject.object_3d_pointcloud, kd_dis); // squared distance of neighbourpoints
-                            printf("Percentage of points within %d distance: %f\n", kd_dis, percentage);
+                            if (verbose) printf("Percentage of points within %d distance: %f\n", kd_dis, percentage);
                             if (percentage > 0.5) {
                                 std::map<std::string, int>::iterator it = DetectedObjects[ids[i]].label_confidence_pair.find(newDetectedObject.label);
                                 // key already present in the map
@@ -343,23 +356,35 @@ void ChangeDetector::data_association_of_detected_objects(pcl::PointCloud<pcl::P
                                     DetectedObjects[ids[i]].label_detection_num_pair.insert(std::make_pair(newDetectedObject.label, 1));
                                 }
 
-                                printf("Updated already existing object %s with id [%d].\n", DetectedObjects[ids[i]].label, ids[i]);
+                                if (verbose) {
+                                    SetConsoleTextAttribute(hConsole, 3);
+                                    printf("Updated already existing object %s with id [%d].\n", DetectedObjects[ids[i]].label, ids[i]);
+                                    SetConsoleTextAttribute(hConsole, 15);
+                                }
                                 for (auto& e : DetectedObjects[ids[i]].label_confidence_pair) {
                                     std::map<std::string, int>::iterator it3 = DetectedObjects[ids[i]].label_detection_num_pair.find(e.first);
-                                    std::cout << '{' << e.first << ", " << e.second/it3->second << ", " <<  it3->second << '}' << '\n';
+                                    if (verbose) std::cout << '{' << e.first << ", " << e.second/it3->second << ", " <<  it3->second << '}' << '\n';
                                 }
                                 should_print = false;
                                 break;
                             }
                         }
                         if (should_print) {
-                            printf("Added new object %s with id [%d], because the nearby objects' pointclouds differ too much.\n", newDetectedObject.label, DetectedObjects.size());
+                            if (verbose) {
+                                SetConsoleTextAttribute(hConsole, 4);
+                                printf("Added new object %s with id [%d], because the nearby objects' pointclouds differ too much.\n", newDetectedObject.label, DetectedObjects.size());
+                                SetConsoleTextAttribute(hConsole, 15);
+                            }
                             DetectedObjects.push_back(newDetectedObject);
                         }
                     }
                 }
                 else {
-                    printf("Added new object %s with id [%d], because it is the first detected object.\n", newDetectedObject.label, DetectedObjects.size());
+                    if (verbose) {
+                        SetConsoleTextAttribute(hConsole, 2);
+                        printf("Added new object %s with id [%d], because it is the first detected object.\n", newDetectedObject.label, DetectedObjects.size());
+                        SetConsoleTextAttribute(hConsole, 15);
+                    }
                     DetectedObjects.push_back(newDetectedObject);
                 }
 
@@ -419,7 +444,7 @@ void ChangeDetector::visualize_end_result(std::string input_pointcloud_path, std
             pcl::PointXYZRGB max_point_AABB;
             pcl::getMinMax3D(*bounding_box_cloud, min_point_AABB, max_point_AABB);
             pcl_final_viewer->addCube(min_point_AABB.x, max_point_AABB.x, min_point_AABB.y, max_point_AABB.y, min_point_AABB.z, max_point_AABB.z, 255, 0, 0, std::to_string(i));
-            pcl_final_viewer->addText3D(DetectedObjects[i].label, DetectedObjects[i].position, 50, 255, 0, 0, DetectedObjects[i].label + "_" + std::to_string(i), 0);
+            pcl_final_viewer->addText3D(DetectedObjects[i].label + "_" + std::to_string(i), DetectedObjects[i].position, 50, 255, 0, 0, DetectedObjects[i].label + "_" + std::to_string(i), 0);
             pcl_final_viewer->setRepresentationToWireframeForAllActors();
         }
     }
