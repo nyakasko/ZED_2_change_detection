@@ -464,7 +464,7 @@ void GLViewer::printText() {
         printGL(-0.99f, 0.95f, state_str.c_str());
     }
 
-    const sl::Transform vpMatrix = camera_.getViewProjectionMatrix() * cam_pose;
+    const sl::Transform vpMatrix = camera_.getViewProjectionMatrix();
     sl::Resolution wnd_size(glutGet(GLUT_WINDOW_WIDTH), glutGet(GLUT_WINDOW_HEIGHT));
     for (auto it : objectsName) {
         auto pt2d = compute3Dprojection(it.position, vpMatrix, wnd_size);

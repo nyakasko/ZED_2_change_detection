@@ -21,7 +21,8 @@ using namespace std;
 using namespace sl;
 
 #define SHOW_SEGMENTED 0
-#define first_run 0
+#define first_run 1
+#define show_pointcloud_in_pcl 0
 void print(std::string msg_prefix, sl::ERROR_CODE err_code = sl::ERROR_CODE::SUCCESS, std::string msg_suffix = "");
 void parse_args(int argc, char **argv,InitParameters& param);
 void print_object_map(std::vector<ChangeDetector::DetectedObject>& DetectedObjects);
@@ -54,15 +55,17 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
     /************************************************/
-
-    // Point cloud viewer
-    //GLViewer viewer;
-    auto camera_infos = zed.getCameraInformation();
-    // Initialize point cloud viewer
     FusedPointCloud map;
-    //GLenum errgl = viewer.init(argc, argv, camera_infos.camera_configuration.calibration_parameters.left_cam, &map, camera_infos.camera_model);
-    //if (errgl!=GLEW_OK)
-    //    print("Error OpenGL: "+std::string((char*)glewGetErrorString(errgl)));
+    auto camera_infos = zed.getCameraInformation();
+#if !show_pointcloud_in_pcl
+    // Point cloud viewer
+    GLViewer viewer;
+    // Initialize point cloud viewer
+    GLenum errgl = viewer.init(argc, argv, camera_infos.camera_configuration.calibration_parameters.left_cam, &map, camera_infos.camera_model);
+    if (errgl != GLEW_OK)
+        print("Error OpenGL: " + std::string((char*)glewGetErrorString(errgl)));
+#endif
+
 
 
     /************************************************/
@@ -153,12 +156,14 @@ int main(int argc, char **argv) {
     // Allocate PCL point cloud at the resolution
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_pcl(new pcl::PointCloud<pcl::PointXYZRGB>);
+#if show_pointcloud_in_pcl
     // Create the PCL point cloud visualizer
     shared_ptr<pcl::visualization::PCLVisualizer> pcl_viewer = changedetector.createRGBVisualizer(p_pcl_point_cloud);
 
     // Set Viewer initial position
     pcl_viewer->setCameraPosition(0, 0, 5, 0, 0, 1, 0, 1, 0);
     pcl_viewer->setCameraClipDistances(0.1, 1000);
+#endif
 #if SHOW_SEGMENTED
     shared_ptr<pcl::visualization::PCLVisualizer> filter_viewer = changedetector.createRGBVisualizer(filtered_pcl);
     filter_viewer->setCameraPosition(0, 0, 5, 0, 0, 1, 0, 1, 0);
@@ -171,7 +176,11 @@ int main(int argc, char **argv) {
     hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
     int found_area_relocalozation = 0;
     // Start the main loop
-    while (!pcl_viewer->wasStopped()) { // viewer.isAvailable()
+#if show_pointcloud_in_pcl
+    while (!pcl_viewer->wasStopped()) {
+#else
+    while (viewer.isAvailable()){
+#endif
         if ((char)cv::waitKey(1) == 27) break; // ESC PRESSED
         // Grab a new image
         if (zed.grab(runtime_parameters) == ERROR_CODE::SUCCESS) {
@@ -182,7 +191,7 @@ int main(int argc, char **argv) {
             zed.retrieveImage(image_zed, VIEW::LEFT, MEM::CPU, display_resolution);
             // Retrieve the camera pose data
             tracking_state = zed.getPosition(pose);
-
+#if !first_run
             // Finding the reference frame, based on the previous run's area map
             if (found_area_relocalozation == 0 && tracking_state == POSITIONAL_TRACKING_STATE::SEARCHING) {
                 SetConsoleTextAttribute(hConsole, 14);
@@ -196,16 +205,22 @@ int main(int argc, char **argv) {
                 SetConsoleTextAttribute(hConsole, 15);
                 found_area_relocalozation = 0;
             }
+#endif
 
-
-            //viewer.updatePose(pose, tracking_state);
-            //viewer.updateData(objects.object_list, pose.pose_data);
+#if !show_pointcloud_in_pcl
+            viewer.updatePose(pose, tracking_state);
+            viewer.updateData(objects.object_list, pose.pose_data);
+#endif
             if (tracking_state == POSITIONAL_TRACKING_STATE::OK) {                
                 auto duration = chrono::duration_cast<chrono::milliseconds>(chrono::high_resolution_clock::now() - ts_last).count();
                 
                 if (init_parameters.svo_real_time_mode == true) {
                     // Ask for a fused point cloud update if 500ms have elapsed since last request
-                    if ((duration > 100)) {//&& viewer.chunksUpdated()) { // 100 or 500 if svo_real_time_mode = true
+#if !show_pointcloud_in_pcl
+                    if ((duration > 500) && viewer.chunksUpdated()) { // 100 or 500 if svo_real_time_mode = true
+#else
+                    if (duration > 100){
+#endif
                         // Ask for a point cloud refresh
                         zed.requestSpatialMapAsync();
                         ts_last = chrono::high_resolution_clock::now();
@@ -213,7 +228,11 @@ int main(int argc, char **argv) {
                 }
                 else {
                     // Ask for a fused point cloud update if 500ms have elapsed since last request
-                    if ((duration > 10)) {//&& viewer.chunksUpdated()) { // 100 or 500 if svo_real_time_mode = true
+#if !show_pointcloud_in_pcl
+                    if ((duration > 500) && viewer.chunksUpdated()) { // 100 or 500 if svo_real_time_mode = true
+#else
+                    if (duration > 100) {
+#endif
                         // Ask for a point cloud refresh
                         zed.requestSpatialMapAsync();
                         ts_last = chrono::high_resolution_clock::now();
@@ -224,7 +243,9 @@ int main(int argc, char **argv) {
                 // If the point cloud is ready to be retrieved
                 if(zed.getSpatialMapRequestStatusAsync() == ERROR_CODE::SUCCESS) {                    
                     zed.retrieveSpatialMapAsync(map);
-                    //viewer.updateChunks();
+#if !show_pointcloud_in_pcl
+                    viewer.updateChunks();
+#endif
                 }
             }
 #if SHOW_SEGMENTED 
@@ -238,7 +259,7 @@ int main(int argc, char **argv) {
 
             // Convert ZED2 pointcloud to PCL format
             changedetector.measurement_to_pcl(data_cloud, p_pcl_point_cloud);
-
+#if show_pointcloud_in_pcl
             if (init_parameters.svo_real_time_mode == false && zed.getSVOPosition() % 10 == 0) {
                 // Send PCL point cloud to PCL viewer
                 pcl_viewer->addPointCloud(p_pcl_point_cloud, std::to_string(pcl_id));
@@ -248,15 +269,17 @@ int main(int argc, char **argv) {
                 changedetector.show_object_detection_on_point_cloud(pcl_viewer, objects, id);
                 pcl_id += 1;
             }
-
-            // Data association
+#endif
 #if first_run
+            // Data association
             changedetector.data_association_of_detected_objects(p_pcl_point_cloud, objects, DetectedObjects, 1000, 10000, false); //eucl_dist and kd_dist and verbose
 #endif
+
         }
     }
-    // Final assignment of labels and confidences
+
 #if first_run
+    // Final assignment of labels and confidences
     changedetector.class_label_and_confidence_decision(DetectedObjects);
 
     // Save generated point cloud
@@ -270,6 +293,7 @@ int main(int argc, char **argv) {
 #else
     map.save((saved_file_name + "_2").c_str(), MESH_FILE_FORMAT::PLY);
 #endif
+
     // Free allocated memory before closing the camera
     image_zed.free();
     // Close the ZED
@@ -282,25 +306,10 @@ void print_object_map(std::vector<ChangeDetector::DetectedObject>& DetectedObjec
     printf("Printing the entire objectmap\n");
     for (int i = 0; i < DetectedObjects.size(); i++) {
         printf("id: %d\n", DetectedObjects[i].tracking_id);
-
-        //printf("label-conf-detection trio\n");
-        //for (auto& e : DetectedObjects[i].label_confidence_pair) {
-        //    std::map<std::string, int>::iterator it3 = DetectedObjects[i].label_detection_num_pair.find(e.first);
-        //    std::cout << '{' << e.first << ", " << e.second / it3->second << ", " << it3->second << '}' << '\n';
-        //}
-
         printf("label: %s\n", DetectedObjects[i].label);
         printf("num of detections: %d\n", DetectedObjects[i].overall_detection_num);
         printf("confidence: %d\n", DetectedObjects[i].confidence);
         printf("position: %f %f %f\n", DetectedObjects[i].position[0], DetectedObjects[i].position[1], DetectedObjects[i].position[2]);
-        //printf("bounding box 2d\n");
-        //for (int bb = 0; bb < DetectedObjects[i].bounding_box_2d.size(); bb++) {
-        //    std::cout << DetectedObjects[i].bounding_box_2d[bb].x << " " << DetectedObjects[i].bounding_box_2d[bb].y << std::endl;
-        //}
-        //printf("bounding box 3d\n");
-        //for (int bb = 0; bb < DetectedObjects[i].bounding_box_3d.size(); bb++) {
-        //    std::cout << DetectedObjects[i].bounding_box_3d[bb].x << " " << DetectedObjects[i].bounding_box_3d[bb].y << " " << DetectedObjects[i].bounding_box_3d[bb].z << std::endl;
-        //}
         printf("has pcl %d\n", DetectedObjects[i].has_object_3d_pointcloud);
     }
 }
