@@ -14,22 +14,23 @@
 #include <pcl/search/search.h>
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/io/ply_io.h>
-
+#include <filesystem>
+#include <iostream>
 // Using std and sl namespaces
 using namespace std;
 using namespace sl;
 
 #define SHOW_SEGMENTED 0
-
+#define first_run 0
 void print(std::string msg_prefix, sl::ERROR_CODE err_code = sl::ERROR_CODE::SUCCESS, std::string msg_suffix = "");
 void parse_args(int argc, char **argv,InitParameters& param);
 void print_object_map(std::vector<ChangeDetector::DetectedObject>& DetectedObjects);
 
 ChangeDetector changedetector;
+string saved_file_name = "debug_map";
 
 int main(int argc, char **argv) {
-    Mat data_cloud; // container for ZED 2 pointcloud measurement
-
+    Mat data_cloud; // container for ZED 2 pointcloud 
     std::vector<ChangeDetector::DetectedObject> DetectedObjects;
     int id = 0; // Bounding box PCL id
     /************************************************/
@@ -38,9 +39,9 @@ int main(int argc, char **argv) {
     Camera zed;
     // Set configuration parameters for the ZED
     InitParameters init_parameters;
-    init_parameters.camera_resolution = RESOLUTION::HD2K;
+    init_parameters.camera_resolution = RESOLUTION::HD720;
     init_parameters.depth_maximum_distance = 5.0f * 1000.0f;
-    init_parameters.depth_minimum_distance = 1000.0f;
+    // init_parameters.depth_minimum_distance = 1000.0f;
     init_parameters.depth_mode = DEPTH_MODE::ULTRA;
     init_parameters.coordinate_system = COORDINATE_SYSTEM::RIGHT_HANDED_Y_UP; // OpenGL's coordinate system is right_handed 
     init_parameters.coordinate_units = UNIT::MILLIMETER;
@@ -70,8 +71,11 @@ int main(int argc, char **argv) {
     Pose pose;
     POSITIONAL_TRACKING_STATE tracking_state = POSITIONAL_TRACKING_STATE::OFF;
     PositionalTrackingParameters positional_tracking_parameters;
-    positional_tracking_parameters.enable_area_memory = false;
-    //positional_tracking_parameters.area_file_path = "otthon.area";
+    positional_tracking_parameters.enable_area_memory = true;
+#if !first_run
+    positional_tracking_parameters.area_file_path = (saved_file_name + ".area").c_str();
+#endif
+
     returned_state = zed.enablePositionalTracking(positional_tracking_parameters);
     if (returned_state != ERROR_CODE::SUCCESS) {
         print("Enabling positional tracking failed: ", returned_state);
@@ -116,7 +120,7 @@ int main(int argc, char **argv) {
     // Request a Point Cloud
     spatial_mapping_parameters.map_type = SpatialMappingParameters::SPATIAL_MAP_TYPE::FUSED_POINT_CLOUD;
     // Set mapping range, it will set the resolution accordingly (a higher range, a lower resolution)
-    spatial_mapping_parameters.set(SpatialMappingParameters::MAPPING_RANGE::LONG);
+    spatial_mapping_parameters.set(SpatialMappingParameters::MAPPING_RANGE::MEDIUM);
     spatial_mapping_parameters.set(SpatialMappingParameters::MAPPING_RESOLUTION::HIGH);
     // Request partial updates only (only the lastest updated chunks need to be re-draw)
     spatial_mapping_parameters.use_chunk_only = false;
@@ -153,7 +157,7 @@ int main(int argc, char **argv) {
     shared_ptr<pcl::visualization::PCLVisualizer> pcl_viewer = changedetector.createRGBVisualizer(p_pcl_point_cloud);
 
     // Set Viewer initial position
-    // pcl_viewer->setCameraPosition(0, 0, 5, 0, 0, 1, 0, 1, 0);
+    pcl_viewer->setCameraPosition(0, 0, 5, 0, 0, 1, 0, 1, 0);
     pcl_viewer->setCameraClipDistances(0.1, 1000);
 #if SHOW_SEGMENTED
     shared_ptr<pcl::visualization::PCLVisualizer> filter_viewer = changedetector.createRGBVisualizer(filtered_pcl);
@@ -162,7 +166,10 @@ int main(int argc, char **argv) {
 #endif
 
     /************************************************/
-    int pcl_id = 5000;
+    int pcl_id = 5000;    
+    HANDLE  hConsole;
+    hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+    int found_area_relocalozation = 0;
     // Start the main loop
     while (!pcl_viewer->wasStopped()) { // viewer.isAvailable()
         if ((char)cv::waitKey(1) == 27) break; // ESC PRESSED
@@ -175,17 +182,44 @@ int main(int argc, char **argv) {
             zed.retrieveImage(image_zed, VIEW::LEFT, MEM::CPU, display_resolution);
             // Retrieve the camera pose data
             tracking_state = zed.getPosition(pose);
+
+            // Finding the reference frame, based on the previous run's area map
+            if (found_area_relocalozation == 0 && tracking_state == POSITIONAL_TRACKING_STATE::SEARCHING) {
+                SetConsoleTextAttribute(hConsole, 14);
+                cout << "Searching for position, based on previous area map....." << endl;
+                SetConsoleTextAttribute(hConsole, 15);
+                found_area_relocalozation = 1;
+            }
+            if (found_area_relocalozation == 1 && tracking_state == POSITIONAL_TRACKING_STATE::OK) {
+                SetConsoleTextAttribute(hConsole, 2);
+                cout << "Found position, based on previous area map" << endl;
+                SetConsoleTextAttribute(hConsole, 15);
+                found_area_relocalozation = 0;
+            }
+
+
             //viewer.updatePose(pose, tracking_state);
             //viewer.updateData(objects.object_list, pose.pose_data);
             if (tracking_state == POSITIONAL_TRACKING_STATE::OK) {                
                 auto duration = chrono::duration_cast<chrono::milliseconds>(chrono::high_resolution_clock::now() - ts_last).count();
                 
-                // Ask for a fused point cloud update if 500ms have elapsed since last request
-                if((duration > 100)){//&& viewer.chunksUpdated()) {
-                    // Ask for a point cloud refresh
-                    zed.requestSpatialMapAsync();
-                    ts_last = chrono::high_resolution_clock::now();
+                if (init_parameters.svo_real_time_mode == true) {
+                    // Ask for a fused point cloud update if 500ms have elapsed since last request
+                    if ((duration > 100)) {//&& viewer.chunksUpdated()) { // 100 or 500 if svo_real_time_mode = true
+                        // Ask for a point cloud refresh
+                        zed.requestSpatialMapAsync();
+                        ts_last = chrono::high_resolution_clock::now();
+                    }
                 }
+                else {
+                    // Ask for a fused point cloud update if 500ms have elapsed since last request
+                    if ((duration > 10)) {//&& viewer.chunksUpdated()) { // 100 or 500 if svo_real_time_mode = true
+                        // Ask for a point cloud refresh
+                        zed.requestSpatialMapAsync();
+                        ts_last = chrono::high_resolution_clock::now();
+                    }
+                }
+
                 
                 // If the point cloud is ready to be retrieved
                 if(zed.getSpatialMapRequestStatusAsync() == ERROR_CODE::SUCCESS) {                    
@@ -205,30 +239,37 @@ int main(int argc, char **argv) {
             // Convert ZED2 pointcloud to PCL format
             changedetector.measurement_to_pcl(data_cloud, p_pcl_point_cloud);
 
-            // Send PCL point cloud to PCL viewer
-            pcl_viewer->addPointCloud(p_pcl_point_cloud, std::to_string(pcl_id));
-            //pcl_viewer->resetCamera();
-            //pcl_viewer->resetCameraViewpoint(std::to_string(pcl_id));
-            pcl_id += 1;
-            // Show 3D bounding boxes on point cloud
-            changedetector.show_object_detection_on_point_cloud(pcl_viewer, objects, id);
+            if (init_parameters.svo_real_time_mode == false && zed.getSVOPosition() % 10 == 0) {
+                // Send PCL point cloud to PCL viewer
+                pcl_viewer->addPointCloud(p_pcl_point_cloud, std::to_string(pcl_id));
+                //pcl_viewer->resetCamera();
+                //pcl_viewer->resetCameraViewpoint(std::to_string(pcl_id));
+                // Show 3D bounding boxes on point cloud
+                changedetector.show_object_detection_on_point_cloud(pcl_viewer, objects, id);
+                pcl_id += 1;
+            }
 
             // Data association
+#if first_run
             changedetector.data_association_of_detected_objects(p_pcl_point_cloud, objects, DetectedObjects, 1000, 10000, false); //eucl_dist and kd_dist and verbose
+#endif
         }
     }
-    // Final assignment of labels and confidences 
+    // Final assignment of labels and confidences
+#if first_run
     changedetector.class_label_and_confidence_decision(DetectedObjects);
 
-    print_object_map(DetectedObjects);
-
     // Save generated point cloud
-    map.save("otthon2", MESH_FILE_FORMAT::PLY);
+    map.save(saved_file_name.c_str(), MESH_FILE_FORMAT::PLY);
 
-    changedetector.visualize_end_result("D:/zed codes/zed_change_pcl/build/otthon2.ply", DetectedObjects);
+    changedetector.save_and_visualize_end_result("D:/zed codes/zed_change_pcl/build/" + saved_file_name + ".ply", DetectedObjects);
 
-    //zed.saveAreaMap("otthon.area");
+    zed.saveAreaMap((saved_file_name + ".area").c_str());
 
+    print_object_map(DetectedObjects);
+#else
+    map.save((saved_file_name + "_2").c_str(), MESH_FILE_FORMAT::PLY);
+#endif
     // Free allocated memory before closing the camera
     image_zed.free();
     // Close the ZED
@@ -240,7 +281,7 @@ int main(int argc, char **argv) {
 void print_object_map(std::vector<ChangeDetector::DetectedObject>& DetectedObjects) {
     printf("Printing the entire objectmap\n");
     for (int i = 0; i < DetectedObjects.size(); i++) {
-        printf("id: %d\n", i);
+        printf("id: %d\n", DetectedObjects[i].tracking_id);
 
         //printf("label-conf-detection trio\n");
         //for (auto& e : DetectedObjects[i].label_confidence_pair) {
@@ -268,7 +309,7 @@ void parse_args(int argc, char **argv,InitParameters& param){
     if (argc > 1 && string(argv[1]).find(".svo")!=string::npos) {
         // SVO input mode
         param.input.setFromSVOFile(argv[1]);
-        param.svo_real_time_mode=true;
+        param.svo_real_time_mode=false; 
 
         cout<<"[Sample] Using SVO File input: "<<argv[1]<<endl;
     } else if (argc > 1 && string(argv[1]).find(".svo")==string::npos) {

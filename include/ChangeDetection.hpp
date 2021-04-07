@@ -51,6 +51,6 @@ public:
 	void data_association_of_detected_objects(pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud, sl::Objects objects,
 		std::vector<ChangeDetector::DetectedObject> &DetectedObjects, int eucl_dist, int kd_dis, bool verbose);
 	void class_label_and_confidence_decision(std::vector<ChangeDetector::DetectedObject>& DetectedObjects);
-	void visualize_end_result(std::string input_pointcloud_path, std::vector<ChangeDetector::DetectedObject>& DetectedObjects);
+	void save_and_visualize_end_result(std::string input_pointcloud_path, std::vector<ChangeDetector::DetectedObject>& DetectedObjects);
 	void registerNewObject(sl::ObjectData zedObject, ChangeDetector::DetectedObject& newDetectedObject, pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud, bool verbose);
 };

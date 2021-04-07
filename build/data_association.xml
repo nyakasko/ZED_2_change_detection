@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<library>
+	<inputPointcloud>
+		<path>D:/zed codes/zed_change_pcl/build/debug_map.ply</path>
+	</inputPointcloud>
+	<objects>
+		<object id="0">
+			<label>Backpack</label>
+			<confidence>51</confidence>
+			<numberOfDetections>51</numberOfDetections>
+			<position>-1250.39 -894.743 -4640.55</position>
+			<has3DPointCloud>true</has3DPointCloud>
+			<pathTo3DPointCloud>D:/zed codes/zed_change_pcl/build/final_objects/Backpack_0.ply</pathTo3DPointCloud>
+			<2DBoundingBox>576 919 717 919 717 1041 576 1041 </2DBoundingBox>
+			<3DBoundingBox>-1478 -704 -4498 -1573 -700 -4914 -1158 -709 -5009 -1063 -714 -4593 -1486 -1012 -4500 -1580 -1007 -4916 -1165 -1016 -5011 -1070 -1021 -4595 </3DBoundingBox>
+		</object>
+		<object id="2">
+			<label>Person</label>
+			<confidence>72</confidence>
+			<numberOfDetections>12</numberOfDetections>
+			<position>686.415 -564.902 -7176.74</position>
+			<has3DPointCloud>true</has3DPointCloud>
+			<pathTo3DPointCloud>D:/zed codes/zed_change_pcl/build/final_objects/Person_2.ply</pathTo3DPointCloud>
+			<2DBoundingBox>1370 630 1477 630 1477 961 1370 961 </2DBoundingBox>
+			<3DBoundingBox>549 530 -6563 292 540 -7117 846 529 -7375 1103 519 -6821 516 -907 -6572 259 -898 -7126 813 -909 -7384 1070 -918 -6830 </3DBoundingBox>
+		</object>
+		<object id="4">
+			<label>Bicycle</label>
+			<confidence>84</confidence>
+			<numberOfDetections>51</numberOfDetections>
+			<position>-4286.95 -666.479 -13049.4</position>
+			<has3DPointCloud>true</has3DPointCloud>
+			<pathTo3DPointCloud>D:/zed codes/zed_change_pcl/build/final_objects/Bicycle_4.ply</pathTo3DPointCloud>
+			<2DBoundingBox>498 630 680 630 680 836 498 836 </2DBoundingBox>
+			<3DBoundingBox>-4849 -162 -12970 -4713 -154 -13914 -3769 -197 -13779 -3905 -204 -12834 -4892 -1169 -12984 -4756 -1161 -13928 -3813 -1204 -13793 -3949 -1211 -12848 </3DBoundingBox>
+		</object>
+	</objects>
+</library>

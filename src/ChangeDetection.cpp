@@ -1,5 +1,13 @@
 #include "ChangeDetection.hpp"
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/xml_parser.hpp>
+#include <charconv>
+#include <vector>
+#include <string>
 
+using boost::property_tree::ptree;
+using boost::property_tree::xml_writer_settings;
+void save_data_association_result(ChangeDetector::DetectedObject& DetectedObject, std::string writePath, ptree& object);
 bool sortbysec(std::tuple<int, float>& a, std::tuple<int, float>& b);
 
 /**
@@ -73,6 +81,7 @@ void ChangeDetector::show_object_detection_on_point_cloud(std::shared_ptr<pcl::v
             }
         }
     }
+    pcl_viewer->resetCamera();
     pcl_viewer->spinOnce();
 }
 
@@ -170,7 +179,7 @@ void ChangeDetector::show_object_detection_on_image(sl::Objects objects, cv::Mat
         }
     }
     cv::imshow("ZED View", image_zed_ocv);
-    cv::waitKey(15);
+    cv::waitKey(1);
 }
 
 /**
@@ -329,7 +338,7 @@ void ChangeDetector::data_association_of_detected_objects(pcl::PointCloud<pcl::P
     std::vector<ChangeDetector::DetectedObject>& DetectedObjects, int eucl_dist, int kd_dis, bool verbose = false) {
     HANDLE  hConsole;
     hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-
+    int track_index = -1;
     bool should_add = true;
     if (!objects.object_list.empty()) {
         for (int index = 0; index < objects.object_list.size(); index++) {
@@ -340,18 +349,24 @@ void ChangeDetector::data_association_of_detected_objects(pcl::PointCloud<pcl::P
                 if (DetectedObjects.size() > 0) {
                     auto ids = return_closest_objects(DetectedObjects, newDetectedObject, eucl_dist, verbose); // distance of bounding box centroids
                     std::string writePath = "D:/zed codes/zed_change_pcl/build/obj_pcls/" + newDetectedObject.label + "_" + std::to_string(DetectedObjects.size()) + ".ply";
+
                     pcl::io::savePLYFileBinary(writePath, *newDetectedObject.object_3d_pointcloud);
-                    if (ids.size() == 0) {
+                    int track = newDetectedObject.tracking_id;
+                    auto talalt_it = std::find_if(DetectedObjects.begin(), DetectedObjects.end(), [&track](const ChangeDetector::DetectedObject& obj) {return obj.tracking_id == track; });
+                    if (talalt_it != DetectedObjects.end()) track_index = std::distance(DetectedObjects.begin(), talalt_it);
+
+                    if (ids.size() == 0 && talalt_it == DetectedObjects.end()) {
                         SetConsoleTextAttribute(hConsole, 2);
-                        printf("Added new object %s with id [%d], because there were no close objects.\n", newDetectedObject.label, DetectedObjects.size());
+                        printf("Added new object %s with id [%d], because there were no close objects.\n", newDetectedObject.label, newDetectedObject.tracking_id);
                         SetConsoleTextAttribute(hConsole, 15);
                         DetectedObjects.push_back(newDetectedObject);
                     }
                     else {
+                        if (ids.empty()) ids.push_back(track_index);
                         if (verbose) std::cout << "Close objects: " << std::endl;
                         should_add = true;
                         for (int i = 0; i < ids.size(); i++) {
-                            if (verbose) std::cout << DetectedObjects[ids[i]].label << " " << ids[i] << " ";
+                            if (verbose) std::cout << DetectedObjects[ids[i]].label << " " << DetectedObjects[ids[i]].tracking_id << " ";
                             float percentage = knn_search(DetectedObjects[ids[i]].object_3d_pointcloud, newDetectedObject.object_3d_pointcloud, kd_dis); // squared distance of neighbourpoints
                             if (verbose) printf("Percentage of points within %d distance: %f\n", kd_dis, percentage);
                             if (percentage > 0.5 || newDetectedObject.tracking_id == DetectedObjects[ids[i]].tracking_id) {
@@ -379,7 +394,7 @@ void ChangeDetector::data_association_of_detected_objects(pcl::PointCloud<pcl::P
                                 }
 
                                 SetConsoleTextAttribute(hConsole, 3);
-                                printf("Updated already existing object %s with id [%d].\n", DetectedObjects[ids[i]].label, ids[i]);
+                                printf("Updated already existing object %s with id [%d].\n", DetectedObjects[ids[i]].label, DetectedObjects[ids[i]].tracking_id);
                                 if (newDetectedObject.tracking_id == DetectedObjects[ids[i]].tracking_id) {
                                     printf("(because they had the same tracking id)\n");
                                 SetConsoleTextAttribute(hConsole, 15);
@@ -396,7 +411,7 @@ void ChangeDetector::data_association_of_detected_objects(pcl::PointCloud<pcl::P
                         if (should_add) {
 
                             SetConsoleTextAttribute(hConsole, 4);
-                            printf("Added new object %s with id [%d], because the nearby objects' pointclouds differ too much.\n", newDetectedObject.label, DetectedObjects.size());
+                            printf("Added new object %s with id [%d], because the nearby objects' pointclouds differ too much.\n", newDetectedObject.label, newDetectedObject.tracking_id);
                             SetConsoleTextAttribute(hConsole, 15);
 
                             DetectedObjects.push_back(newDetectedObject);
@@ -404,11 +419,9 @@ void ChangeDetector::data_association_of_detected_objects(pcl::PointCloud<pcl::P
                     }
                 }
                 else {
-                    if (verbose) {
-                        SetConsoleTextAttribute(hConsole, 2);
-                        printf("Added new object %s with id [%d], because it is the first detected object.\n", newDetectedObject.label, DetectedObjects.size());
-                        SetConsoleTextAttribute(hConsole, 15);
-                    }
+                    SetConsoleTextAttribute(hConsole, 2);
+                    printf("Added new object %s with id [%d], because it is the first detected object.\n", newDetectedObject.label, newDetectedObject.tracking_id);
+                    SetConsoleTextAttribute(hConsole, 15);
                     DetectedObjects.push_back(newDetectedObject);
                 }
             }
@@ -448,7 +461,7 @@ void ChangeDetector::class_label_and_confidence_decision(std::vector<ChangeDetec
  * input1: path to the fused pointcloud
  * input2: already detected, stored objects
  **/
-void ChangeDetector::visualize_end_result(std::string input_pointcloud_path, std::vector<ChangeDetector::DetectedObject>& DetectedObjects) {
+void ChangeDetector::save_and_visualize_end_result(std::string input_pointcloud_path, std::vector<ChangeDetector::DetectedObject>& DetectedObjects) {
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr final_output(new pcl::PointCloud<pcl::PointXYZRGB>);
     pcl::io::loadPLYFile(input_pointcloud_path, *final_output);
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr segment_final(new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -459,32 +472,76 @@ void ChangeDetector::visualize_end_result(std::string input_pointcloud_path, std
     pcl::compute3DCentroid(*final_output, centroid);
     pcl_final_viewer->setCameraPosition(centroid[0], centroid[1], centroid[2], 0, 0, 1, 0, 1, 0);
     //pcl_final_viewer->setCameraClipDistances(0.1, 1000);
+    std::ofstream file("data_association.xml");
+    boost::property_tree::ptree tree;
+    ptree& input_pcl = tree.add("library.inputPointcloud", "");
+    input_pcl.add("path", input_pointcloud_path);
 
-    for (int i = 0; i < DetectedObjects.size(); i++) {
-        if (DetectedObjects[i].detection_num > 5)
+    for (auto detectedObject = DetectedObjects.begin(); detectedObject != DetectedObjects.end(); detectedObject++) {
+        if (detectedObject->detection_num > 5)
         {
-            segment_final = segment_bounding_box(DetectedObjects[i].bounding_box_3d, final_output);
-            std::string writePath = "D:/zed codes/zed_change_pcl/build/final_objects/" + DetectedObjects[i].label + "_" + std::to_string(i) + ".ply";
-            pcl::io::savePLYFileBinary(writePath, *segment_final);
+            segment_final = segment_bounding_box(detectedObject->bounding_box_3d, final_output);
+            if (segment_final->size() > 200) {
+                std::string writePath = "D:/zed codes/zed_change_pcl/build/final_objects/" + detectedObject->label + "_" + std::to_string(detectedObject->tracking_id) + ".ply";
+                pcl::io::savePLYFileBinary(writePath, *segment_final);
 
+                save_data_association_result(*detectedObject, writePath, tree);
 
-            pcl::PointCloud<pcl::PointXYZRGB>::Ptr bounding_box_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-            bounding_box_cloud->points.resize(DetectedObjects[i].bounding_box_3d.size());
-            for (int pont = 0; pont < DetectedObjects[i].bounding_box_3d.size(); pont++) {
-                bounding_box_cloud->points[pont].x = DetectedObjects[i].bounding_box_3d[pont].x;
-                bounding_box_cloud->points[pont].y = DetectedObjects[i].bounding_box_3d[pont].y;
-                bounding_box_cloud->points[pont].z = DetectedObjects[i].bounding_box_3d[pont].z;
+                pcl::PointCloud<pcl::PointXYZRGB>::Ptr bounding_box_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+                bounding_box_cloud->points.resize(detectedObject->bounding_box_3d.size());
+                for (int pont = 0; pont < detectedObject->bounding_box_3d.size(); pont++) {
+                    bounding_box_cloud->points[pont].x = detectedObject->bounding_box_3d[pont].x;
+                    bounding_box_cloud->points[pont].y = detectedObject->bounding_box_3d[pont].y;
+                    bounding_box_cloud->points[pont].z = detectedObject->bounding_box_3d[pont].z;
+                }
+                pcl::PointXYZRGB min_point_AABB;
+                pcl::PointXYZRGB max_point_AABB;
+                pcl::getMinMax3D(*bounding_box_cloud, min_point_AABB, max_point_AABB);
+                pcl_final_viewer->addCube(min_point_AABB.x, max_point_AABB.x, min_point_AABB.y, max_point_AABB.y, min_point_AABB.z, max_point_AABB.z, 255, 0, 0, std::to_string(detectedObject->tracking_id));
+                pcl_final_viewer->addText3D(detectedObject->label + "_" + std::to_string(detectedObject->tracking_id), detectedObject->position, 50, 255, 0, 0, detectedObject->label + "_" + std::to_string(detectedObject->tracking_id), 0);
+                pcl_final_viewer->setRepresentationToWireframeForAllActors();
             }
-            pcl::PointXYZRGB min_point_AABB;
-            pcl::PointXYZRGB max_point_AABB;
-            pcl::getMinMax3D(*bounding_box_cloud, min_point_AABB, max_point_AABB);
-            pcl_final_viewer->addCube(min_point_AABB.x, max_point_AABB.x, min_point_AABB.y, max_point_AABB.y, min_point_AABB.z, max_point_AABB.z, 255, 0, 0, std::to_string(i));
-            pcl_final_viewer->addText3D(DetectedObjects[i].label + "_" + std::to_string(i), DetectedObjects[i].position, 50, 255, 0, 0, DetectedObjects[i].label + "_" + std::to_string(i), 0);
-            pcl_final_viewer->setRepresentationToWireframeForAllActors();
+            else DetectedObjects.erase(detectedObject);
         }
+        else DetectedObjects.erase(detectedObject);
     }
+
+    boost::property_tree::write_xml(
+        file, tree,
+        boost::property_tree::xml_writer_make_settings<std::string>('\t', 1));
+
     while (!pcl_final_viewer->wasStopped())
     {
         pcl_final_viewer->spinOnce();
     }
+}
+
+
+void save_data_association_result(ChangeDetector::DetectedObject& DetectedObject, std::string writePath, ptree& tree) {
+    ptree& object = tree.add("library.objects.object", "");
+    object.add("label", DetectedObject.label);
+    object.add("<xmlattr>.id", DetectedObject.tracking_id);
+    object.add("confidence", DetectedObject.confidence);
+    object.add("numberOfDetections", DetectedObject.overall_detection_num);
+    object.add("position", DetectedObject.position);
+    object.add("has3DPointCloud", DetectedObject.has_object_3d_pointcloud);
+    object.add("pathTo3DPointCloud", writePath);
+    std::stringstream result;
+    std::vector<int> bb_out;
+    for (int coord = 0; coord < DetectedObject.bounding_box_2d.size(); coord++) {
+        bb_out.push_back(DetectedObject.bounding_box_2d[coord].x);
+        bb_out.push_back(DetectedObject.bounding_box_2d[coord].y);
+    }
+
+    std::copy(bb_out.begin(), bb_out.end(), std::ostream_iterator<int>(result, " "));
+    object.add("2DBoundingBox", result.str());
+    std::vector<int> bb3_out;
+    std::stringstream result2;
+    for (int coord = 0; coord < DetectedObject.bounding_box_3d.size(); coord++) {
+        bb3_out.push_back(DetectedObject.bounding_box_3d[coord].x);
+        bb3_out.push_back(DetectedObject.bounding_box_3d[coord].y);
+        bb3_out.push_back(DetectedObject.bounding_box_3d[coord].z);
+    }
+    std::copy(bb3_out.begin(), bb3_out.end(), std::ostream_iterator<int>(result2, " "));
+    object.add("3DBoundingBox", result2.str());
 }
