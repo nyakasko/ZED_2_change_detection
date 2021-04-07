@@ -166,7 +166,7 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr ChangeDetector::segment_bounding_box(std:
  * input3: resolution of the desired window
  * input4: resolution of the camera and thus the image
  **/
-void ChangeDetector::show_object_detection_on_image(sl::Objects objects, cv::Mat image_zed_ocv, sl::Resolution display_resolution, sl::Resolution camera_resolution) {
+void ChangeDetector::show_object_detection_on_image(sl::Objects objects, cv::Mat image_zed_ocv, sl::Resolution display_resolution, sl::Resolution camera_resolution, int& detection_confidence) {
     if (!objects.object_list.empty()) {
         for (int index = 0; index < objects.object_list.size(); index++) {
             auto label = objects.object_list[index].sublabel;
@@ -178,6 +178,7 @@ void ChangeDetector::show_object_detection_on_image(sl::Objects objects, cv::Mat
             cv::putText(image_zed_ocv, cv_text, resize_boundingbox_coordinates(bounding_box[0].x, bounding_box[0].y - 10, display_resolution, camera_resolution), cv::FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(255, 0, 0), 1);
         }
     }
+    cv::createTrackbar("Confidence", "ZED View", &detection_confidence, 100);
     cv::imshow("ZED View", image_zed_ocv);
     cv::waitKey(1);
 }

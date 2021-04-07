@@ -10,6 +10,9 @@
     <ClCompile Include="..\src\ChangeDetection.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\TrackingViewer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="D:\zed codes\zed_change_pcl\include\GLViewer.hpp">
@@ -22,6 +25,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\include\ChangeDetection.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\TrackingViewer.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -318,10 +318,12 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\ChangeDetection.hpp" />
+    <ClInclude Include="..\include\TrackingViewer.hpp" />
     <ClInclude Include="D:\zed codes\zed_change_pcl\include\GLViewer.hpp" />
     <ClInclude Include="D:\zed codes\zed_change_pcl\include\ZEDModel.hpp" />
     <ClInclude Include="D:\zed codes\zed_change_pcl\include\utils.hpp" />
     <ClCompile Include="..\src\ChangeDetection.cpp" />
+    <ClCompile Include="..\src\TrackingViewer.cpp" />
     <ClCompile Include="D:\zed codes\zed_change_pcl\src\GLViewer.cpp" />
     <ClCompile Include="D:\zed codes\zed_change_pcl\src\main.cpp" />
   </ItemGroup>
