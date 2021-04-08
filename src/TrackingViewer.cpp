@@ -71,12 +71,12 @@ void render_2D(cv::Mat &left_display, sl::float2 img_scale, std::vector<sl::Obje
             putText(left_display,  toString(obj.label).get(), cv::Point2d(position_image.x - 20, position_image.y - 12),
                         cv::FONT_HERSHEY_COMPLEX_SMALL, 0.5, cv::Scalar(255, 255, 255, 255), 1 );
 
-            if (std::isfinite(obj.position.z)) {
-                char text[64];
-                sprintf(text, "%2.1fM", abs(obj.position.z / 1000.0f));
-                putText(left_display, text, cv::Point2d(position_image.x - 20, position_image.y),
-                        cv::FONT_HERSHEY_COMPLEX_SMALL, 0.5, cv::Scalar(255, 255, 255, 255), 1 );
-            }
+            //if (std::isfinite(obj.position.z)) {
+            //    char text[64];
+            //    sprintf(text, "%2.1fM", abs(obj.position.z / 1000.0f));
+            //    putText(left_display, text, cv::Point2d(position_image.x - 20, position_image.y),
+            //            cv::FONT_HERSHEY_COMPLEX_SMALL, 0.5, cv::Scalar(255, 255, 255, 255), 1 );
+            //}
         }
     }
     // Here, overlay is as the left image, but with opaque masks on each detected objects
@@ -162,12 +162,12 @@ TrackingViewer::TrackingViewer(sl::Resolution res, const int fps_, const float D
 
 
 void TrackingViewer::generate_view(sl::Objects &objects, sl::Pose current_camera_pose, cv::Mat &tracking_view, bool tracking_enabled) {
-    // To get position in WORLD reference
-    for (auto &obj : objects.object_list) {
-        sl::Translation pos = obj.position;
-        sl::Translation new_pos = pos * current_camera_pose.getOrientation() + current_camera_pose.getTranslation();
-        obj.position = sl::float3(new_pos.x, new_pos.y, new_pos.z);
-    }
+    //// To get position in WORLD reference
+    //for (auto &obj : objects.object_list) {
+    //    sl::Translation pos = obj.position;
+    //    sl::Translation new_pos = pos * current_camera_pose.getOrientation() + current_camera_pose.getTranslation();
+    //    obj.position = sl::float3(new_pos.x, new_pos.y, new_pos.z);
+    //}
 
     // Initialize visualization
     if (!has_background_ready)
