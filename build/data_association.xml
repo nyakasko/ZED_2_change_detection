@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<library>
+	<inputPointcloud>
+		<path>D:/zed codes/zed_change_pcl/build/debug_map.ply</path>
+	</inputPointcloud>
+	<objects>
+		<object id="0">
+			<label>Backpack</label>
+			<confidence>51</confidence>
+			<numberOfDetections>52</numberOfDetections>
+			<position>-1263.68 -897.373 -4642.17</position>
+			<has3DPointCloud>true</has3DPointCloud>
+			<pathTo3DPointCloud>D:/zed codes/zed_change_pcl/build/final_objects/Backpack_0.ply</pathTo3DPointCloud>
+			<2DBoundingBox>576 919 717 919 717 1041 576 1041 </2DBoundingBox>
+			<3DBoundingBox>-1431 -708 -4521 -1524 -701 -4941 -1104 -709 -5034 -1011 -716 -4614 -1437 -1014 -4525 -1531 -1007 -4944 -1111 -1015 -5038 -1017 -1022 -4618 </3DBoundingBox>
+		</object>
+		<object id="1">
+			<label>Person</label>
+			<confidence>75</confidence>
+			<numberOfDetections>16</numberOfDetections>
+			<position>724.888 -488.842 -7232.63</position>
+			<has3DPointCloud>true</has3DPointCloud>
+			<pathTo3DPointCloud>D:/zed codes/zed_change_pcl/build/final_objects/Person_1.ply</pathTo3DPointCloud>
+			<2DBoundingBox>1333 632 1439 632 1439 958 1333 958 </2DBoundingBox>
+			<3DBoundingBox>577 564 -6522 286 576 -7090 854 569 -7382 1145 556 -6814 549 -906 -6540 258 -893 -7108 826 -901 -7400 1117 -913 -6832 </3DBoundingBox>
+		</object>
+		<object id="3">
+			<label>Bicycle</label>
+			<confidence>83</confidence>
+			<numberOfDetections>96</numberOfDetections>
+			<position>-4250.88 -637.833 -13152.7</position>
+			<has3DPointCloud>true</has3DPointCloud>
+			<pathTo3DPointCloud>D:/zed codes/zed_change_pcl/build/final_objects/Bicycle_3.ply</pathTo3DPointCloud>
+			<2DBoundingBox>498 630 680 630 680 837 498 837 </2DBoundingBox>
+			<3DBoundingBox>-4909 -142 -13268 -4734 -121 -14293 -3709 -162 -14118 -3885 -182 -13093 -4946 -1204 -13296 -4770 -1184 -14321 -3746 -1224 -14146 -3922 -1245 -13121 </3DBoundingBox>
+		</object>
+		<object id="4">
+			<label>Car</label>
+			<confidence>68</confidence>
+			<numberOfDetections>26</numberOfDetections>
+			<position>-326.08 -538.63 -12096.2</position>
+			<has3DPointCloud>true</has3DPointCloud>
+			<pathTo3DPointCloud>D:/zed codes/zed_change_pcl/build/final_objects/Car_4.ply</pathTo3DPointCloud>
+			<2DBoundingBox>1682 484 1916 484 1916 1020 1682 1020 </2DBoundingBox>
+			<3DBoundingBox>-445 35 -12217 481 22 -12496 760 -13 -11570 -166 0 -11290 -473 -1170 -12254 453 -1184 -12534 732 -1219 -11607 -194 -1206 -11328 </3DBoundingBox>
+		</object>
+		<object id="5">
+			<label>Car</label>
+			<confidence>86</confidence>
+			<numberOfDetections>15</numberOfDetections>
+			<position>252.501 -255.604 -11511</position>
+			<has3DPointCloud>true</has3DPointCloud>
+			<pathTo3DPointCloud>D:/zed codes/zed_change_pcl/build/final_objects/Car_5.ply</pathTo3DPointCloud>
+			<2DBoundingBox>855 514 1292 514 1292 768 855 768 </2DBoundingBox>
+			<3DBoundingBox>-439 186 -12128 741 164 -12297 909 122 -11116 -271 143 -10948 -456 -559 -12153 724 -580 -12322 892 -623 -11141 -288 -601 -10972 </3DBoundingBox>
+		</object>
+	</objects>
+</library>

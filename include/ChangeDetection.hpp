@@ -18,6 +18,10 @@
 #include <iostream>
 #include <valarray>
 #include <iterator>
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/xml_parser.hpp>
+#include <boost/algorithm/string/split.hpp>
+#include <boost/algorithm/string/classification.hpp>
 
 class ChangeDetector {
 public:
@@ -36,6 +40,7 @@ public:
 		int detection_num;
 		int overall_detection_num;
 		bool ismoving;
+		std::string path_to_pointcloud;
 	};
 	void measurement_to_pcl(sl::Mat measurement, pcl::PointCloud<pcl::PointXYZRGB>::Ptr &p_pcl_point_cloud);
 	float convertColor(float colorIn);
@@ -53,4 +58,5 @@ public:
 	void class_label_and_confidence_decision(std::vector<ChangeDetector::DetectedObject>& DetectedObjects);
 	void save_and_visualize_end_result(std::string input_pointcloud_path, std::vector<ChangeDetector::DetectedObject>& DetectedObjects);
 	void registerNewObject(sl::ObjectData zedObject, ChangeDetector::DetectedObject& newDetectedObject, pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud, bool verbose);
+	void read_previously_saved_detected_objects(std::string saved_xml_file_path, std::vector<ChangeDetector::DetectedObject>& PreviouslyDetectedObjects);
 };

@@ -17,6 +17,8 @@
 #include <pcl/io/ply_io.h>
 #include <filesystem>
 #include <iostream>
+#include <libqhullcpp/Qhull.h>
+
 // Using std and sl namespaces
 using namespace std;
 using namespace sl;
@@ -26,6 +28,7 @@ using namespace sl;
 #define first_run 1
 // macro for deciding if the 3d pointcloud should be shown using GLViewer or PCLviewer
 #define show_pointcloud_in_pcl 0
+
 void print(std::string msg_prefix, sl::ERROR_CODE err_code = sl::ERROR_CODE::SUCCESS, std::string msg_suffix = "");
 void parse_args(int argc, char **argv,InitParameters& param);
 void print_object_map(std::vector<ChangeDetector::DetectedObject>& DetectedObjects);
@@ -36,7 +39,9 @@ string saved_file_name = "debug_map";
 int main(int argc, char **argv) {
     Mat data_cloud; // container for ZED 2 pointcloud 
     std::vector<ChangeDetector::DetectedObject> DetectedObjects;
+    std::vector<ChangeDetector::DetectedObject> PreviouslyDetectedObjects;
     int id = 0; // Bounding box PCL id
+    const string saved_xml_file_path = "D:/zed codes/zed_change_pcl/build/data_association.xml";
     /************************************************/
              /*Camera init*/
 
@@ -81,6 +86,9 @@ int main(int argc, char **argv) {
     positional_tracking_parameters.enable_area_memory = true;
 #if !first_run
     positional_tracking_parameters.area_file_path = (saved_file_name + ".area").c_str();
+    // Read the previously created xml file that contains the detected objects in run t[i]
+    changedetector.read_previously_saved_detected_objects(saved_xml_file_path, PreviouslyDetectedObjects);
+    std::cout << "Previously detected objects have been successfully loaded from the cml file." << std::endl;
 #endif
 
     returned_state = zed.enablePositionalTracking(positional_tracking_parameters);
@@ -227,6 +235,10 @@ int main(int argc, char **argv) {
                 SetConsoleTextAttribute(hConsole, 15);
                 found_area_relocalozation = 0;
             }
+
+            // Displaying previous detections on new run
+
+
 #endif
 
 #if !show_pointcloud_in_pcl
@@ -239,7 +251,7 @@ int main(int argc, char **argv) {
                 if (init_parameters.svo_real_time_mode == true) {
                     // Ask for a fused point cloud update if 500ms have elapsed since last request
 #if !show_pointcloud_in_pcl
-                    if ((duration > 500) && viewer.chunksUpdated()) { // 100 or 500 if svo_real_time_mode = true
+                    if ((duration > 100) && viewer.chunksUpdated()) { // 100 or 500 if svo_real_time_mode = true
 #else
                     if (duration > 100){
 #endif
@@ -251,7 +263,7 @@ int main(int argc, char **argv) {
                 else {
                     // Ask for a fused point cloud update if 500ms have elapsed since last request
 #if !show_pointcloud_in_pcl
-                    if ((duration > 500) && viewer.chunksUpdated()) { // 100 or 500 if svo_real_time_mode = true
+                    if ((duration > 100) && viewer.chunksUpdated()) { // 100 or 500 if svo_real_time_mode = true
 #else
                     if (duration > 10) {
 #endif
@@ -324,10 +336,13 @@ int main(int argc, char **argv) {
     // Save generated point cloud
     map.save(saved_file_name.c_str(), MESH_FILE_FORMAT::PLY);
 
+    // Save and visualize the result, but leave out objects with number of detections less than 5 and pointcloud points less than 200
     changedetector.save_and_visualize_end_result("D:/zed codes/zed_change_pcl/build/" + saved_file_name + ".ply", DetectedObjects);
 
+    // Save area map so that in the second run the camera will be able relocalize itself
     zed.saveAreaMap((saved_file_name + ".area").c_str());
-
+    std::cout << "Area map has been successfully saved." << std::endl;
+    // Print the final and cleaned object map that got saved into the xml file.
     print_object_map(DetectedObjects);
 #else
     map.save((saved_file_name + "_2").c_str(), MESH_FILE_FORMAT::PLY);

@@ -1,6 +1,4 @@
 #include "ChangeDetection.hpp"
-#include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/xml_parser.hpp>
 #include <charconv>
 #include <vector>
 #include <string>
@@ -517,7 +515,12 @@ void ChangeDetector::save_and_visualize_end_result(std::string input_pointcloud_
     }
 }
 
-
+/**
+ * This function saved the final object map into an xml file
+ * input1: detected objects
+ * input2: filepath where the xml file will be saved
+ * input3: boost tree object
+ **/
 void save_data_association_result(ChangeDetector::DetectedObject& DetectedObject, std::string writePath, ptree& tree) {
     ptree& object = tree.add("library.objects.object", "");
     object.add("label", DetectedObject.label);
@@ -545,4 +548,49 @@ void save_data_association_result(ChangeDetector::DetectedObject& DetectedObject
     }
     std::copy(bb3_out.begin(), bb3_out.end(), std::ostream_iterator<int>(result2, " "));
     object.add("3DBoundingBox", result2.str());
+}
+
+/**
+ * This function reads the previously saved object map from an xml file
+ * input1: filepath where the xml file was saved
+ * input2: where to store the previously detected objects after reading the file
+ **/
+void ChangeDetector::read_previously_saved_detected_objects(std::string saved_xml_file_path, std::vector<ChangeDetector::DetectedObject>& PreviouslyDetectedObjects) {
+    boost::property_tree::ptree pt1;
+    boost::property_tree::read_xml(saved_xml_file_path, pt1);
+    // Traverse property tree
+    BOOST_FOREACH(boost::property_tree::ptree::value_type const& node, pt1.get_child("library.objects"))
+    {
+        boost::property_tree::ptree subtree = node.second;
+        if (node.first == "object")
+        {
+            ChangeDetector::DetectedObject PreviouslyDetectedObject;
+            PreviouslyDetectedObject.tracking_id = subtree.get<int>("<xmlattr>.id");
+            subtree.get_child("");
+            PreviouslyDetectedObject.label = subtree.get<std::string>("label");
+            PreviouslyDetectedObject.confidence = subtree.get<int>("confidence");
+            PreviouslyDetectedObject.overall_detection_num = subtree.get<int>("numberOfDetections");
+            std::string xml_posi = subtree.get<std::string>("position");
+            std::vector<std::string> numbers;
+            boost::algorithm::split(numbers, xml_posi, boost::algorithm::is_any_of(" "));
+            for (int i = 0; i < numbers.size(); i++) {
+                PreviouslyDetectedObject.position[i] = atof(numbers[i].c_str());
+            }
+            PreviouslyDetectedObject.has_object_3d_pointcloud = subtree.get<bool>("has3DPointCloud");
+            PreviouslyDetectedObject.path_to_pointcloud = subtree.get<std::string>("pathTo3DPointCloud");
+            std::string xml_2d_bb = subtree.get<std::string>("2DBoundingBox");
+            std::vector<std::string> numbers2;
+            boost::algorithm::split(numbers2, xml_2d_bb, boost::algorithm::is_any_of(" "));
+            for (int i = 0, j = 0; i < 4; i++, j += 2) {
+                PreviouslyDetectedObject.bounding_box_2d.push_back({ stoul(numbers2[j]), stoul(numbers2[j + 1]) });
+            }
+            std::string xml_3d_bb = subtree.get<std::string>("3DBoundingBox");
+            std::vector<std::string> numbers3;
+            boost::algorithm::split(numbers3, xml_3d_bb, boost::algorithm::is_any_of(" "));
+            for (int i = 0, j = 0; i < 8; i++, j += 3) {
+                PreviouslyDetectedObject.bounding_box_3d.push_back({ stof(numbers3[j]), stof(numbers3[j + 1]), stof(numbers3[j + 2]) });
+            }
+            PreviouslyDetectedObjects.push_back(PreviouslyDetectedObject);
+        }
+    }
 }
