@@ -44,6 +44,7 @@ public:
 	};
 	void measurement_to_pcl(sl::Mat measurement, pcl::PointCloud<pcl::PointXYZRGB>::Ptr &p_pcl_point_cloud);
 	float convertColor(float colorIn);
+	void show_object_on_image(ChangeDetector::DetectedObject object, cv::Mat image_zed_ocv, cv::Point Pixel, sl::Resolution display_resolution, sl::Resolution camera_resolution);
 	void show_object_detection_on_point_cloud(std::shared_ptr<pcl::visualization::PCLVisualizer> pcl_viewer, sl::Objects objects, int &id);
 	void segment_and_show_bounding_box_from_point_cloud(std::shared_ptr<pcl::visualization::PCLVisualizer> filter_viewer, sl::Objects objects,
 		pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud, pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_pcl, int& id);
@@ -59,4 +60,6 @@ public:
 	void save_and_visualize_end_result(std::string input_pointcloud_path, std::vector<ChangeDetector::DetectedObject>& DetectedObjects);
 	void registerNewObject(sl::ObjectData zedObject, ChangeDetector::DetectedObject& newDetectedObject, pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud, bool verbose);
 	void read_previously_saved_detected_objects(std::string saved_xml_file_path, std::vector<ChangeDetector::DetectedObject>& PreviouslyDetectedObjects);
+	sl::Translation transform_p_world_to_p_cam(sl::Translation current_pos, sl::Pose cam_pose);
+	cv::Point _3d_point_to_2d_pixel(sl::Translation new_position, sl::CameraParameters calib_param);
 };

@@ -164,6 +164,28 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr ChangeDetector::segment_bounding_box(std:
  * input3: resolution of the desired window
  * input4: resolution of the camera and thus the image
  **/
+void ChangeDetector::show_object_on_image(ChangeDetector::DetectedObject object, cv::Mat image_zed_ocv, cv::Point Pixel, sl::Resolution display_resolution, sl::Resolution camera_resolution) {
+    auto label = object.label;
+    auto confidence = object.confidence;
+    auto bounding_box = object.bounding_box_2d;
+    std::string cv_text = "Previously detected " + label + " " + std::to_string((int)confidence) + "%";
+
+    int width = object.bounding_box_2d[2].x - object.bounding_box_2d[0].x;
+    int height = object.bounding_box_2d[2].y - object.bounding_box_2d[0].y;
+
+    cv::rectangle(image_zed_ocv, resize_boundingbox_coordinates(Pixel.x - width / 2, Pixel.y - height / 2, display_resolution, camera_resolution),
+        resize_boundingbox_coordinates(Pixel.x + width / 2, Pixel.y + height / 2, display_resolution, camera_resolution), cv::Scalar(255, 0, 0));
+
+    cv::putText(image_zed_ocv, cv_text, resize_boundingbox_coordinates(Pixel.x - width / 2, Pixel.y - height / 2 - 10, display_resolution, camera_resolution), cv::FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(255, 0, 0), 1);
+}
+
+/**
+ * This function shows the 2D bounding boxes of detected objects on an OpenCV window
+ * input1: detected objects
+ * input2: captured image by ZED - draw the bounding boxes on this image
+ * input3: resolution of the desired window
+ * input4: resolution of the camera and thus the image
+ **/
 void ChangeDetector::show_object_detection_on_image(sl::Objects objects, cv::Mat image_zed_ocv, sl::Resolution display_resolution, sl::Resolution camera_resolution, int& detection_confidence) {
     if (!objects.object_list.empty()) {
         for (int index = 0; index < objects.object_list.size(); index++) {
@@ -590,7 +612,37 @@ void ChangeDetector::read_previously_saved_detected_objects(std::string saved_xm
             for (int i = 0, j = 0; i < 8; i++, j += 3) {
                 PreviouslyDetectedObject.bounding_box_3d.push_back({ stof(numbers3[j]), stof(numbers3[j + 1]), stof(numbers3[j + 2]) });
             }
+            pcl::PointCloud<pcl::PointXYZRGB>::Ptr load_pcl(new pcl::PointCloud<pcl::PointXYZRGB>);
+
+            pcl::io::loadPLYFile(PreviouslyDetectedObject.path_to_pointcloud, *load_pcl);
+            PreviouslyDetectedObject.object_3d_pointcloud = load_pcl;
+
             PreviouslyDetectedObjects.push_back(PreviouslyDetectedObject);
         }
     }
+}
+
+/**
+ * This function transforms an object's world coordinates to the current camera coordinates
+ * input1: current 3d position of object wrt world frame
+ * input2: current camera pose wrt world frame
+ * returns new position that is wrt camera frame
+ **/
+sl::Translation ChangeDetector::transform_p_world_to_p_cam(sl::Translation current_pos,  sl::Pose cam_pose) {
+    auto cam_to_world = cam_pose;
+    cam_to_world.pose_data.inverse();
+    sl::Translation new_pos = current_pos * cam_to_world.getOrientation() + cam_to_world.getTranslation();
+    return new_pos;
+}
+
+/**
+ * This function maps a 3d point (wrt to camera frame) to image pixels
+ * input1: current 3d position of object wrt camera frame
+ * input2: camera calibration parameters
+ * returns 2d pixel value (x,y) mapped from the 3d point
+ **/
+cv::Point ChangeDetector::_3d_point_to_2d_pixel(sl::Translation new_position, sl::CameraParameters calib_param) {
+    int pixelX = calib_param.cx - (new_position.x * calib_param.fx) / new_position.z;
+    int pixelY = calib_param.cy + (new_position.y * calib_param.fy) / new_position.z;
+    return cv::Point(pixelX, pixelY);
 }

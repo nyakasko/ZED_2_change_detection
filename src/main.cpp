@@ -15,6 +15,7 @@
 #include <pcl/search/search.h>
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/io/ply_io.h>
+#include <pcl/surface/convex_hull.h>
 #include <filesystem>
 #include <iostream>
 #include <libqhullcpp/Qhull.h>
@@ -25,7 +26,7 @@ using namespace sl;
 // macro for showing the 3d pointclouds segmented by their 3d bounding boxes
 #define SHOW_SEGMENTED 0
 // macro for deciding if the code runs for the t[i] or t[i+1] time - t[i] -> data association, t[i+1] ->change detection
-#define first_run 1
+#define first_run 0
 // macro for deciding if the 3d pointcloud should be shown using GLViewer or PCLviewer
 #define show_pointcloud_in_pcl 0
 
@@ -64,7 +65,7 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
     /************************************************/
-    FusedPointCloud map;
+    sl::FusedPointCloud map;
     auto camera_infos = zed.getCameraInformation();
 #if !show_pointcloud_in_pcl
     // Point cloud viewer
@@ -88,7 +89,7 @@ int main(int argc, char **argv) {
     positional_tracking_parameters.area_file_path = (saved_file_name + ".area").c_str();
     // Read the previously created xml file that contains the detected objects in run t[i]
     changedetector.read_previously_saved_detected_objects(saved_xml_file_path, PreviouslyDetectedObjects);
-    std::cout << "Previously detected objects have been successfully loaded from the cml file." << std::endl;
+    std::cout << "Previously detected objects have been successfully loaded from the xml file." << std::endl;
 #endif
 
     returned_state = zed.enablePositionalTracking(positional_tracking_parameters);
@@ -198,6 +199,7 @@ int main(int argc, char **argv) {
 #endif
 
     /************************************************/
+    auto calib_param_ = camera_infos.camera_configuration.calibration_parameters.left_cam;
 
     bool quit = false;
     int pcl_id = 5000;
@@ -305,14 +307,51 @@ int main(int argc, char **argv) {
                 pcl_id += 1;
             }
 #endif
+            zed.getPosition(cam_pose, REFERENCE_FRAME::WORLD);
 #if first_run
             // Data association
             changedetector.data_association_of_detected_objects(p_pcl_point_cloud, objects, DetectedObjects, 1000, 10000, false); //eucl_dist and kd_dist and verbose
+#else
+            //pcl::ConvexHull<pcl::PointXYZRGB> hull;
+            //hull.setInputCloud(p_pcl_point_cloud);
+            //hull.setDimension(3);
+            //std::vector<pcl::Vertices> polygons;
+            //pcl::PointCloud<pcl::PointXYZRGB>::Ptr surface_hull(new pcl::PointCloud<pcl::PointXYZRGB>);
+            //hull.reconstruct(*surface_hull, polygons);
+
+            pcl::PointXYZRGB min_, max_;
+            pcl::getMinMax3D(*p_pcl_point_cloud, min_, max_);          
+
+            for (auto prev_obj : PreviouslyDetectedObjects) {
+                auto posi_ = prev_obj.position;
+                if ((posi_.x < max_.x && posi_.x > min_.x) && (posi_.y < max_.y && posi_.y > min_.y) && (posi_.z < max_.z && posi_.z > min_.z)) {
+                    sl::Translation new_position = changedetector.transform_p_world_to_p_cam(posi_, cam_pose);
+                    cv::Point Pixel = changedetector._3d_point_to_2d_pixel(new_position, calib_param_);
+                    // Draw bounding box around the previously detected object
+                    changedetector.show_object_on_image(prev_obj, image_zed_ocv, Pixel, display_resolution, resolution);
+
+
+                    // Transform 3d points to 2d pixels and draw them onto 2D image
+                    for (auto points_ : prev_obj.object_3d_pointcloud->points) {
+                        sl::Translation point_tr = {points_.x, points_.y, points_.z};
+                        sl::Translation new_position = changedetector.transform_p_world_to_p_cam(point_tr, cam_pose);
+                        cv::Point Pixel = changedetector._3d_point_to_2d_pixel(new_position, calib_param_);
+                        auto new_pixel = changedetector.resize_boundingbox_coordinates(Pixel.x, Pixel.y, display_resolution, resolution);
+                        if (new_pixel.x < image_zed_ocv.cols && new_pixel.x > 0 && new_pixel.y < image_zed_ocv.rows && new_pixel.y > 0) {
+                            image_zed_ocv.at<cv::Vec4b>(new_pixel.y, new_pixel.x)[0] = points_.b;
+                            image_zed_ocv.at<cv::Vec4b>(new_pixel.y, new_pixel.x)[1] = points_.g;
+                            image_zed_ocv.at<cv::Vec4b>(new_pixel.y, new_pixel.x)[2] = points_.r;
+                            image_zed_ocv.at<cv::Vec4b>(new_pixel.y, new_pixel.x)[3] = points_.a;
+                        }
+                    }
+                }
+            }
+            //cout << surface_hull->size();
 #endif
 
             // as image_zed_ocv is a ref of image_left, it contains directly the new grabbed image
             render_2D(image_zed_ocv, img_scale, objects.object_list, true);
-            zed.getPosition(cam_pose, REFERENCE_FRAME::WORLD);
+
             // update birds view of tracks based on camera position and detected objects
             track_view_generator.generate_view(objects, cam_pose, image_track_ocv, objects.is_tracked);
             cv::imshow(window_name, global_image);
