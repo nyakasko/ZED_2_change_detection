@@ -32,21 +32,24 @@ void ChangeDetector::measurement_to_pcl(sl::Mat measurement, pcl::PointCloud<pcl
         for (int h = 0; h < measurement.getHeight(); h++) {
             sl::float4 pixel;
             measurement.getValue(w, h, &pixel);
-            if (!isValidMeasure(pixel.x)) {
-                p_pcl_point_cloud->points[index].x = 0;
-                p_pcl_point_cloud->points[index].y = 0;
-                p_pcl_point_cloud->points[index].z = 0;
-                p_pcl_point_cloud->points[index].rgb = 0;
-            }
-            else {
+            //if (!isValidMeasure(pixel.x)) {
+            //    p_pcl_point_cloud->points[index].x = 0;
+            //    p_pcl_point_cloud->points[index].y = 0;
+            //    p_pcl_point_cloud->points[index].z = 0;
+            //    p_pcl_point_cloud->points[index].rgb = 0;
+            //}
+            //else {
+            if (isValidMeasure(pixel.x)) {
                 p_pcl_point_cloud->points[index].x = pixel.x;
                 p_pcl_point_cloud->points[index].y = pixel.y;
                 p_pcl_point_cloud->points[index].z = pixel.z;
                 p_pcl_point_cloud->points[index].rgb = convertColor(pixel[3]);
+                index += 1;
             }
-            index += 1;
+
         }
     }
+    p_pcl_point_cloud->points.resize(index + 1);
 }
 
 /**

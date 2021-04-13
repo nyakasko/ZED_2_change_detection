@@ -127,7 +127,7 @@ public:
     void addPoint(float x, float y, float z, float r, float g, float b, float a);
     void addLine(sl::float3 p1, sl::float3 p2, sl::float3 clr);
     void addPoint(sl::float3 position, sl::float3 color);
-
+    void addTriangle(sl::float3 p1, sl::float3 p2, sl::float3 p3, sl::float4 clr);
     // New 3D rendering
     void addFullEdges(std::vector<sl::float3>& pts, sl::float4 clr);
     void addVerticalEdges(std::vector<sl::float3>& pts, sl::float4 clr);
@@ -290,7 +290,7 @@ private:
     Simple3DObject skeletons;
     Simple3DObject floor_grid;
     sl::Transform cam_pose;
-
+    Simple3DObject frustum;
     std::mutex mtx;
     bool updateZEDposition = false;;
 

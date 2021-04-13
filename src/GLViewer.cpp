@@ -62,6 +62,44 @@ bool GLViewer::isAvailable() {
     return available;
 }
 
+Simple3DObject createFrustum(sl::CameraParameters param) {
+
+    // Create 3D axis
+    Simple3DObject it(sl::Translation(0, 0, 0), true);
+
+    float Z_ = -300;
+    sl::float3 cam_0(0, 0, 0);
+    sl::float3 cam_1, cam_2, cam_3, cam_4;
+
+    float fx_ = 1.f / param.fx;
+    float fy_ = 1.f / param.fy;
+
+    cam_1.z = Z_;
+    cam_1.x = (0 - param.cx) * Z_ * fx_;
+    cam_1.y = (0 - param.cy) * Z_ * fy_;
+
+    cam_2.z = Z_;
+    cam_2.x = (param.image_size.width - param.cx) * Z_ * fx_;
+    cam_2.y = (0 - param.cy) * Z_ * fy_;
+
+    cam_3.z = Z_;
+    cam_3.x = (param.image_size.width - param.cx) * Z_ * fx_;
+    cam_3.y = (param.image_size.height - param.cy) * Z_ * fy_;
+
+    cam_4.z = Z_;
+    cam_4.x = (0 - param.cx) * Z_ * fx_;
+    cam_4.y = (param.image_size.height - param.cy) * Z_ * fy_;
+
+    sl::float4 clr(0.8f, 0.5f, 0.2f, 1.0f);
+    it.addTriangle(cam_0, cam_1, cam_2, clr);
+    it.addTriangle(cam_0, cam_2, cam_3, clr);
+    it.addTriangle(cam_0, cam_3, cam_4, clr);
+    it.addTriangle(cam_0, cam_4, cam_1, clr);
+
+    it.setDrawingType(GL_TRIANGLES);
+    return it;
+}
+
 void CloseFunc(void) { if(currentInstance_)  currentInstance_->exit();}
 
 void fillZED(int nb_tri, float *vertices, int *triangles, sl::float3 color, Simple3DObject *zed_camera) {
@@ -115,6 +153,9 @@ sl::CameraParameters param, sl::FusedPointCloud* ptr, sl::MODEL zed_model) {
     // Create the camera
     camera_ = CameraGL(sl::Translation(0, 0, 1000), sl::Translation(0, 0, -100));
     camera_.setOffsetFromPosition(sl::Translation(0, 0, 1500));
+
+    frustum = createFrustum(param);
+    frustum.pushToGPU();
 
     // change background color
     bckgrnd_clr = sl::float4(0.2f, 0.19f, 0.2f, 1.0f);
@@ -391,7 +432,8 @@ void GLViewer::draw() {
 
     glLineWidth(1.f);
     zedPath.draw();
-
+    //glLineWidth(2.f);
+    //frustum.draw();
     glLineWidth(1.5f);
     BBox_edges.draw();
     glLineWidth(4.f);
@@ -591,6 +633,12 @@ void Simple3DObject::addClr(sl::float4 clr) {
     colors_.push_back(clr.g);
     colors_.push_back(clr.r);
     colors_.push_back(clr.a);
+}
+
+void Simple3DObject::addTriangle(sl::float3 p1, sl::float3 p2, sl::float3 p3, sl::float4 clr) {
+    addPoint(p1, clr);
+    addPoint(p2, clr);
+    addPoint(p3, clr);
 }
 
 void Simple3DObject::addLine(sl::float3 p1, sl::float3 p2, sl::float3 clr) {

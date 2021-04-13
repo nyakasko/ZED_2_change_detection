@@ -318,6 +318,7 @@ int main(int argc, char **argv) {
             //std::vector<pcl::Vertices> polygons;
             //pcl::PointCloud<pcl::PointXYZRGB>::Ptr surface_hull(new pcl::PointCloud<pcl::PointXYZRGB>);
             //hull.reconstruct(*surface_hull, polygons);
+            //cout << surface_hull->size();
 
             pcl::PointXYZRGB min_, max_;
             pcl::getMinMax3D(*p_pcl_point_cloud, min_, max_);          
@@ -326,7 +327,9 @@ int main(int argc, char **argv) {
                 auto posi_ = prev_obj.position;
                 if ((posi_.x < max_.x && posi_.x > min_.x) && (posi_.y < max_.y && posi_.y > min_.y) && (posi_.z < max_.z && posi_.z > min_.z)) {
                     sl::Translation new_position = changedetector.transform_p_world_to_p_cam(posi_, cam_pose);
+                    if (new_position.z > 0 || new_position.z < (-1) * init_parameters.depth_maximum_distance) continue;
                     cv::Point Pixel = changedetector._3d_point_to_2d_pixel(new_position, calib_param_);
+                    if (Pixel.x < 0 || Pixel.y < 0 || Pixel.x >= calib_param_.image_size.width || Pixel.y >= calib_param_.image_size.height) continue;
                     // Draw bounding box around the previously detected object
                     changedetector.show_object_on_image(prev_obj, image_zed_ocv, Pixel, display_resolution, resolution);
 
@@ -346,7 +349,6 @@ int main(int argc, char **argv) {
                     }
                 }
             }
-            //cout << surface_hull->size();
 #endif
 
             // as image_zed_ocv is a ref of image_left, it contains directly the new grabbed image
