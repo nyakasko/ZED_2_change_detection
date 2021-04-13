@@ -649,3 +649,47 @@ cv::Point ChangeDetector::_3d_point_to_2d_pixel(sl::Translation new_position, sl
     int pixelY = calib_param.cy + (new_position.y * calib_param.fy) / new_position.z;
     return cv::Point(pixelX, pixelY);
 }
+
+/**
+ * This function queries the previously detected objects and reprojects them onto the new run's image 
+ * input1: opencv image
+ * input2: the current pointcloud that the ZED camera computed
+ * input3: previously detected object structure
+ * input4: camera pose
+ * input5: initial parameters of the camera
+ * input6: calibration parameters of the camera
+ * input7: display resolution of the opencv image
+ * input8: resolution of the camera
+ **/
+void ChangeDetector::find_and_reproject_previous_detections_onto_image(cv::Mat image_zed_ocv, 
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud, std::vector<ChangeDetector::DetectedObject>& PreviouslyDetectedObjects,
+    sl::Pose cam_pose, sl::InitParameters init_parameters, sl::CameraParameters calib_param_, sl::Resolution display_resolution, sl::Resolution resolution) {
+
+    pcl::PointXYZRGB min_, max_;
+    pcl::getMinMax3D(*p_pcl_point_cloud, min_, max_);
+    for (auto prev_obj : PreviouslyDetectedObjects) {
+        auto posi_ = prev_obj.position;
+        if ((posi_.x < max_.x && posi_.x > min_.x) && (posi_.y < max_.y && posi_.y > min_.y) && (posi_.z < max_.z && posi_.z > min_.z)) {
+            sl::Translation new_position = transform_p_world_to_p_cam(posi_, cam_pose);
+            if (new_position.z > 0 || new_position.z < (-1) * init_parameters.depth_maximum_distance) continue;
+            cv::Point Pixel = _3d_point_to_2d_pixel(new_position, calib_param_);
+            if (Pixel.x < 0 || Pixel.y < 0 || Pixel.x >= calib_param_.image_size.width || Pixel.y >= calib_param_.image_size.height) continue;
+            // Draw bounding box around the previously detected object
+            show_object_on_image(prev_obj, image_zed_ocv, Pixel, display_resolution, resolution);
+
+            // Transform 3d points to 2d pixels and draw them onto 2D image
+            for (auto points_ : prev_obj.object_3d_pointcloud->points) {
+                sl::Translation point_tr = { points_.x, points_.y, points_.z };
+                sl::Translation new_position = transform_p_world_to_p_cam(point_tr, cam_pose);
+                cv::Point Pixel = _3d_point_to_2d_pixel(new_position, calib_param_);
+                auto new_pixel = resize_boundingbox_coordinates(Pixel.x, Pixel.y, display_resolution, resolution);
+                if (new_pixel.x < image_zed_ocv.cols && new_pixel.x > 0 && new_pixel.y < image_zed_ocv.rows && new_pixel.y > 0) {
+                    image_zed_ocv.at<cv::Vec4b>(new_pixel.y, new_pixel.x)[0] = points_.b;
+                    image_zed_ocv.at<cv::Vec4b>(new_pixel.y, new_pixel.x)[1] = points_.g;
+                    image_zed_ocv.at<cv::Vec4b>(new_pixel.y, new_pixel.x)[2] = points_.r;
+                    image_zed_ocv.at<cv::Vec4b>(new_pixel.y, new_pixel.x)[3] = points_.a;
+                }
+            }
+        }
+    }
+}

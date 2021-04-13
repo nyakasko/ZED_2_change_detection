@@ -238,9 +238,6 @@ int main(int argc, char **argv) {
                 found_area_relocalozation = 0;
             }
 
-            // Displaying previous detections on new run
-
-
 #endif
 
 #if !show_pointcloud_in_pcl
@@ -312,43 +309,9 @@ int main(int argc, char **argv) {
             // Data association
             changedetector.data_association_of_detected_objects(p_pcl_point_cloud, objects, DetectedObjects, 1000, 10000, false); //eucl_dist and kd_dist and verbose
 #else
-            //pcl::ConvexHull<pcl::PointXYZRGB> hull;
-            //hull.setInputCloud(p_pcl_point_cloud);
-            //hull.setDimension(3);
-            //std::vector<pcl::Vertices> polygons;
-            //pcl::PointCloud<pcl::PointXYZRGB>::Ptr surface_hull(new pcl::PointCloud<pcl::PointXYZRGB>);
-            //hull.reconstruct(*surface_hull, polygons);
-            //cout << surface_hull->size();
-
-            pcl::PointXYZRGB min_, max_;
-            pcl::getMinMax3D(*p_pcl_point_cloud, min_, max_);          
-
-            for (auto prev_obj : PreviouslyDetectedObjects) {
-                auto posi_ = prev_obj.position;
-                if ((posi_.x < max_.x && posi_.x > min_.x) && (posi_.y < max_.y && posi_.y > min_.y) && (posi_.z < max_.z && posi_.z > min_.z)) {
-                    sl::Translation new_position = changedetector.transform_p_world_to_p_cam(posi_, cam_pose);
-                    if (new_position.z > 0 || new_position.z < (-1) * init_parameters.depth_maximum_distance) continue;
-                    cv::Point Pixel = changedetector._3d_point_to_2d_pixel(new_position, calib_param_);
-                    if (Pixel.x < 0 || Pixel.y < 0 || Pixel.x >= calib_param_.image_size.width || Pixel.y >= calib_param_.image_size.height) continue;
-                    // Draw bounding box around the previously detected object
-                    changedetector.show_object_on_image(prev_obj, image_zed_ocv, Pixel, display_resolution, resolution);
-
-
-                    // Transform 3d points to 2d pixels and draw them onto 2D image
-                    for (auto points_ : prev_obj.object_3d_pointcloud->points) {
-                        sl::Translation point_tr = {points_.x, points_.y, points_.z};
-                        sl::Translation new_position = changedetector.transform_p_world_to_p_cam(point_tr, cam_pose);
-                        cv::Point Pixel = changedetector._3d_point_to_2d_pixel(new_position, calib_param_);
-                        auto new_pixel = changedetector.resize_boundingbox_coordinates(Pixel.x, Pixel.y, display_resolution, resolution);
-                        if (new_pixel.x < image_zed_ocv.cols && new_pixel.x > 0 && new_pixel.y < image_zed_ocv.rows && new_pixel.y > 0) {
-                            image_zed_ocv.at<cv::Vec4b>(new_pixel.y, new_pixel.x)[0] = points_.b;
-                            image_zed_ocv.at<cv::Vec4b>(new_pixel.y, new_pixel.x)[1] = points_.g;
-                            image_zed_ocv.at<cv::Vec4b>(new_pixel.y, new_pixel.x)[2] = points_.r;
-                            image_zed_ocv.at<cv::Vec4b>(new_pixel.y, new_pixel.x)[3] = points_.a;
-                        }
-                    }
-                }
-            }
+            // Displaying previous detections on the new run's image
+            changedetector.find_and_reproject_previous_detections_onto_image(image_zed_ocv, p_pcl_point_cloud, PreviouslyDetectedObjects, cam_pose,
+                init_parameters, calib_param_, display_resolution, resolution);
 #endif
 
             // as image_zed_ocv is a ref of image_left, it contains directly the new grabbed image

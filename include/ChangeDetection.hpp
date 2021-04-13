@@ -33,14 +33,14 @@ public:
 		std::vector<sl::uint2> bounding_box_2d; // 2D bounding box corners
 		std::vector<sl::float3> bounding_box_3d; // 3D bounding box corners
 		std::vector<sl::float3> bounding_box_3d_sum; // 3D bounding box corners summed up from previous detections
-		pcl::PointCloud<pcl::PointXYZRGB>::Ptr object_3d_pointcloud;
-		bool has_object_3d_pointcloud;
-		std::map<std::string, int> label_confidence_pair;
-		std::map<std::string, int> label_detection_num_pair;
-		int detection_num;
-		int overall_detection_num;
-		bool ismoving;
-		std::string path_to_pointcloud;
+		pcl::PointCloud<pcl::PointXYZRGB>::Ptr object_3d_pointcloud; // segmented (by the bounding box) point cloud of the object
+		bool has_object_3d_pointcloud; // if the detected object has 3d coordinates in its point cloud
+		std::map<std::string, int> label_confidence_pair; // map with the object's detected label and confidence -- needed for post-processing
+		std::map<std::string, int> label_detection_num_pair; // map with the object's detected label and number of detections -- needed for post-processing
+		int detection_num; // number of detections
+		int overall_detection_num; // overall number of detections -- after post-processing
+		bool ismoving; // indicates if the object is moving or not
+		std::string path_to_pointcloud; // path to the stored point cloud file of the object
 	};
 	void measurement_to_pcl(sl::Mat measurement, pcl::PointCloud<pcl::PointXYZRGB>::Ptr &p_pcl_point_cloud);
 	float convertColor(float colorIn);
@@ -62,4 +62,7 @@ public:
 	void read_previously_saved_detected_objects(std::string saved_xml_file_path, std::vector<ChangeDetector::DetectedObject>& PreviouslyDetectedObjects);
 	sl::Translation transform_p_world_to_p_cam(sl::Translation current_pos, sl::Pose cam_pose);
 	cv::Point _3d_point_to_2d_pixel(sl::Translation new_position, sl::CameraParameters calib_param);
+	void find_and_reproject_previous_detections_onto_image(cv::Mat image_zed_ocv, pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud, 
+		std::vector<ChangeDetector::DetectedObject>&  PreviouslyDetectedObjects, sl::Pose cam_pose, sl::InitParameters init_parameters, sl::CameraParameters calib_param_, 
+		sl::Resolution display_resolution, sl::Resolution resolution);
 };
