@@ -310,18 +310,18 @@ int main(int argc, char **argv) {
             // Data association
             changedetector.data_association_of_detected_objects(p_pcl_point_cloud, objects, DetectedObjects, 1000, 10000, false); //eucl_dist and kd_dist and verbose
 #else
-            // Displaying previous detections on the new run's image
+            // Displaying previous detections on the new run's IMAGE
             changedetector.find_and_reproject_previous_detections_onto_image(image_zed_ocv, p_pcl_point_cloud, PreviouslyDetectedObjects, cam_pose,
                 init_parameters, calib_param_, display_resolution, resolution);
 #endif
 #if !show_pointcloud_in_pcl && !first_run
-            // Displaying previous detections on the new run's pointcloud
+            // Displaying previous detections on the new run's POINTCLOUD
             changedetector.find_and_show_previous_detections_on_pointcloud(p_pcl_point_cloud, PreviouslyDetectedObjects, cam_pose, init_parameters, calib_param_, objects.object_list);
             viewer.updateData(objects.object_list, pose.pose_data);
 #endif
 
             // as image_zed_ocv is a ref of image_left, it contains directly the new grabbed image
-            render_2D(image_zed_ocv, img_scale, objects.object_list, true);
+            render_2D(image_zed_ocv, img_scale, objects.object_list, cam_pose, true);
 
             // update birds view of tracks based on camera position and detected objects
             track_view_generator.generate_view(objects, cam_pose, image_track_ocv, objects.is_tracked);

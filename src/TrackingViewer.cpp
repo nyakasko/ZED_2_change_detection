@@ -1,14 +1,17 @@
 #include "TrackingViewer.hpp"
-
+#include "ChangeDetection.hpp"
 // -------------------------------------------------
 //            2D LEFT VIEW
 // -------------------------------------------------
+
+ChangeDetector change_det;
+
 template<typename T>
 inline cv::Point2f cvt(T pt, sl::float2 scale) {
     return cv::Point2f(pt.x * scale.x, pt.y * scale.y);
 }
 
-void render_2D(cv::Mat &left_display, sl::float2 img_scale, std::vector<sl::ObjectData> &objects, bool render_mask) {
+void render_2D(cv::Mat &left_display, sl::float2 img_scale, std::vector<sl::ObjectData> &objects, sl::Pose cam_pose, bool render_mask) {
     cv::Mat overlay = left_display.clone();
     cv::Rect roi_render(0, 0, left_display.size().width, left_display.size().height);
 
@@ -71,12 +74,13 @@ void render_2D(cv::Mat &left_display, sl::float2 img_scale, std::vector<sl::Obje
             putText(left_display,  toString(obj.sublabel).get(), cv::Point2d(position_image.x - 20, position_image.y - 12),
                         cv::FONT_HERSHEY_COMPLEX_SMALL, 0.5, cv::Scalar(255, 255, 255, 255), 1 );
 
-            //if (std::isfinite(obj.position.z)) {
-            //    char text[64];
-            //    sprintf(text, "%2.1fM", abs(obj.position.z / 1000.0f));
-            //    putText(left_display, text, cv::Point2d(position_image.x - 20, position_image.y),
-            //            cv::FONT_HERSHEY_COMPLEX_SMALL, 0.5, cv::Scalar(255, 255, 255, 255), 1 );
-            //}
+            sl::Translation new_position = change_det.transform_p_world_to_p_cam(obj.position, cam_pose);
+            if (std::isfinite(new_position.z)) {
+                char text[64];
+                sprintf(text, "%2.1fM", abs(new_position.z / 1000.0f));
+                putText(left_display, text, cv::Point2d(position_image.x - 20, position_image.y),
+                        cv::FONT_HERSHEY_COMPLEX_SMALL, 0.5, cv::Scalar(255, 255, 255, 255), 1 );
+            }
         }
     }
     // Here, overlay is as the left image, but with opaque masks on each detected objects
