@@ -89,6 +89,6 @@ public:
 	void find_and_reproject_previous_detections_onto_image(cv::Mat image_zed_ocv, pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud, 
 		std::vector<ChangeDetector::DetectedObject>&  PreviouslyDetectedObjects, sl::Pose cam_pose, sl::InitParameters init_parameters, sl::CameraParameters calib_param_, 
 		sl::Resolution display_resolution, sl::Resolution resolution);
-	void find_and_show_previous_detections_on_pointcloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud, std::vector<ChangeDetector::DetectedObject>& PreviouslyDetectedObjects,
+	void add_previous_detections_to_sl_objects(pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud, std::vector<ChangeDetector::DetectedObject>& PreviouslyDetectedObjects,
 		sl::Pose cam_pose, sl::InitParameters init_parameters, sl::CameraParameters calib_param_, std::vector<sl::ObjectData>& object_list);
 };

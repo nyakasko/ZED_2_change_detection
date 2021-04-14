@@ -76,8 +76,14 @@ void ChangeDetector::show_object_detection_on_point_cloud(std::shared_ptr<pcl::v
                 pcl::PointXYZRGB min_point_AABB;
                 pcl::PointXYZRGB max_point_AABB;
                 pcl::getMinMax3D(*bounding_box_cloud, min_point_AABB, max_point_AABB);
-                pcl_viewer->addCube(min_point_AABB.x, max_point_AABB.x, min_point_AABB.y, max_point_AABB.y, min_point_AABB.z, max_point_AABB.z, 255, 0, 0, std::to_string(id));
-                pcl_viewer->setRepresentationToWireframeForAllActors();
+                if (objects.object_list[index].id == -10) {
+                    pcl_viewer->addCube(min_point_AABB.x, max_point_AABB.x, min_point_AABB.y, max_point_AABB.y, min_point_AABB.z, max_point_AABB.z, 0, 0, 255, std::to_string(id));
+                    pcl_viewer->setRepresentationToWireframeForAllActors();
+                }
+                else {
+                    pcl_viewer->addCube(min_point_AABB.x, max_point_AABB.x, min_point_AABB.y, max_point_AABB.y, min_point_AABB.z, max_point_AABB.z, 255, 0, 0, std::to_string(id));
+                    pcl_viewer->setRepresentationToWireframeForAllActors();
+                }
                 id += 1;
             }
         }
@@ -694,7 +700,7 @@ void ChangeDetector::find_and_reproject_previous_detections_onto_image(cv::Mat i
     }
 }
 
-void ChangeDetector::find_and_show_previous_detections_on_pointcloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud, std::vector<ChangeDetector::DetectedObject>& PreviouslyDetectedObjects,
+void ChangeDetector::add_previous_detections_to_sl_objects(pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud, std::vector<ChangeDetector::DetectedObject>& PreviouslyDetectedObjects,
     sl::Pose cam_pose, sl::InitParameters init_parameters, sl::CameraParameters calib_param_, std::vector<sl::ObjectData>& object_list) {
     pcl::PointXYZRGB min_, max_;
     pcl::getMinMax3D(*p_pcl_point_cloud, min_, max_);

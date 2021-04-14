@@ -40,6 +40,8 @@ string saved_file_name = "debug_map";
 
 int main(int argc, char **argv) {
     Mat data_cloud; // container for ZED 2 pointcloud 
+    HANDLE  hConsole;
+    hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
     std::vector<ChangeDetector::DetectedObject> DetectedObjects;
     std::vector<ChangeDetector::DetectedObject> PreviouslyDetectedObjects;
     int id = 0; // Bounding box PCL id
@@ -86,11 +88,14 @@ int main(int argc, char **argv) {
     POSITIONAL_TRACKING_STATE tracking_state = POSITIONAL_TRACKING_STATE::OFF;
     PositionalTrackingParameters positional_tracking_parameters;
     positional_tracking_parameters.enable_area_memory = true;
+
 #if !first_run
     positional_tracking_parameters.area_file_path = (saved_file_name + ".area").c_str();
     // Read the previously created xml file that contains the detected objects in run t[i]
     changedetector.read_previously_saved_detected_objects(saved_xml_file_path, PreviouslyDetectedObjects);
+    SetConsoleTextAttribute(hConsole, 2);
     std::cout << "Previously detected objects have been successfully loaded from the xml file." << std::endl;
+    SetConsoleTextAttribute(hConsole, 15);
 #endif
 
     returned_state = zed.enablePositionalTracking(positional_tracking_parameters);
@@ -205,8 +210,6 @@ int main(int argc, char **argv) {
     bool quit = false;
     int pcl_id = 5000;
     Pose cam_pose;
-    HANDLE  hConsole;
-    hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
     int found_area_relocalozation = 0;
     // Start the main loop
 #if show_pointcloud_in_pcl
@@ -248,31 +251,16 @@ int main(int argc, char **argv) {
             if (tracking_state == POSITIONAL_TRACKING_STATE::OK) {                
                 auto duration = chrono::duration_cast<chrono::milliseconds>(chrono::high_resolution_clock::now() - ts_last).count();
                 
-                if (init_parameters.svo_real_time_mode == true) {
-                    // Ask for a fused point cloud update if 500ms have elapsed since last request
+                // Ask for a fused point cloud update if 500ms have elapsed since last request
 #if !show_pointcloud_in_pcl
-                    if ((duration > 100) && viewer.chunksUpdated()) { // 100 or 500 if svo_real_time_mode = true
+                if ((duration > 100) && viewer.chunksUpdated()) { // 100 or 500 if svo_real_time_mode = true
 #else
-                    if (duration > 100){
+                if (duration > 100){
 #endif
-                        // Ask for a point cloud refresh
-                        zed.requestSpatialMapAsync();
-                        ts_last = chrono::high_resolution_clock::now();
-                    }
+                    // Ask for a point cloud refresh
+                    zed.requestSpatialMapAsync();
+                    ts_last = chrono::high_resolution_clock::now();
                 }
-                else {
-                    // Ask for a fused point cloud update if 500ms have elapsed since last request
-#if !show_pointcloud_in_pcl
-                    if ((duration > 100) && viewer.chunksUpdated()) { // 100 or 500 if svo_real_time_mode = true
-#else
-                    if (duration > 10) {
-#endif
-                        // Ask for a point cloud refresh
-                        zed.requestSpatialMapAsync();
-                        ts_last = chrono::high_resolution_clock::now();
-                    }
-                }
-
                 
                 // If the point cloud is ready to be retrieved
                 if(zed.getSpatialMapRequestStatusAsync() == ERROR_CODE::SUCCESS) {                    
@@ -294,18 +282,9 @@ int main(int argc, char **argv) {
 
             // Convert ZED2 pointcloud to PCL format
             changedetector.measurement_to_pcl(data_cloud, p_pcl_point_cloud);
-#if show_pointcloud_in_pcl
-            if (init_parameters.svo_real_time_mode == false && zed.getSVOPosition() % 10 == 0) {
-                // Send PCL point cloud to PCL viewer
-                pcl_viewer->addPointCloud(p_pcl_point_cloud, std::to_string(pcl_id));
-                //pcl_viewer->resetCamera();
-                //pcl_viewer->resetCameraViewpoint(std::to_string(pcl_id));
-                // Show 3D bounding boxes on point cloud
-                changedetector.show_object_detection_on_point_cloud(pcl_viewer, objects, id);
-                pcl_id += 1;
-            }
-#endif
+
             zed.getPosition(cam_pose, REFERENCE_FRAME::WORLD);
+
 #if first_run
             // Data association
             changedetector.data_association_of_detected_objects(p_pcl_point_cloud, objects, DetectedObjects, 1000, 10000, false); //eucl_dist and kd_dist and verbose
@@ -313,10 +292,23 @@ int main(int argc, char **argv) {
             // Displaying previous detections on the new run's IMAGE
             changedetector.find_and_reproject_previous_detections_onto_image(image_zed_ocv, p_pcl_point_cloud, PreviouslyDetectedObjects, cam_pose,
                 init_parameters, calib_param_, display_resolution, resolution);
+            // Adding previous detections to the object list and displaying them later on the new run's POINTCLOUD
+            changedetector.add_previous_detections_to_sl_objects(p_pcl_point_cloud, PreviouslyDetectedObjects, cam_pose, init_parameters, calib_param_, objects.object_list);
 #endif
-#if !show_pointcloud_in_pcl && !first_run
-            // Displaying previous detections on the new run's POINTCLOUD
-            changedetector.find_and_show_previous_detections_on_pointcloud(p_pcl_point_cloud, PreviouslyDetectedObjects, cam_pose, init_parameters, calib_param_, objects.object_list);
+
+#if show_pointcloud_in_pcl
+            if (init_parameters.svo_real_time_mode == false && zed.getSVOPosition() % 10 == 0) {
+                //pcl_viewer->resetCamera();
+                //pcl_viewer->resetCameraViewpoint(std::to_string(pcl_id));
+                if (tracking_state == POSITIONAL_TRACKING_STATE::OK) {
+                    // Send PCL point cloud to PCL viewer
+                    pcl_viewer->addPointCloud(p_pcl_point_cloud, std::to_string(pcl_id));
+                    // Show 3D bounding boxes on point cloud
+                    changedetector.show_object_detection_on_point_cloud(pcl_viewer, objects, id);
+                    pcl_id += 1;
+                }
+            }
+#else
             viewer.updateData(objects.object_list, pose.pose_data);
 #endif
 
