@@ -42,6 +42,30 @@ public:
 		bool ismoving; // indicates if the object is moving or not
 		std::string path_to_pointcloud; // path to the stored point cloud file of the object
 	};
+	std::map <std::string, sl::OBJECT_SUBCLASS> get_sl_subclass{
+		{"Person", sl::OBJECT_SUBCLASS::PERSON },
+		{"Bicycle", sl::OBJECT_SUBCLASS::BICYCLE },
+		{"Car", sl::OBJECT_SUBCLASS::CAR },
+		{"Motorbike", sl::OBJECT_SUBCLASS::MOTORBIKE },
+		{"Bus", sl::OBJECT_SUBCLASS::BUS },
+		{"Truck", sl::OBJECT_SUBCLASS::TRUCK },
+		{"Boat", sl::OBJECT_SUBCLASS::BOAT },
+		{"Backpack", sl::OBJECT_SUBCLASS::BACKPACK },
+		{"Handbag", sl::OBJECT_SUBCLASS::HANDBAG },
+		{"Suitcase", sl::OBJECT_SUBCLASS::SUITCASE },
+		{"Bird", sl::OBJECT_SUBCLASS::BIRD },
+		{"Cat", sl::OBJECT_SUBCLASS::CAT },
+		{"Dog", sl::OBJECT_SUBCLASS::DOG },
+		{"Horse", sl::OBJECT_SUBCLASS::HORSE },
+		{"Sheep", sl::OBJECT_SUBCLASS::SHEEP },
+		{"Cow", sl::OBJECT_SUBCLASS::COW },
+		{"Cellphone", sl::OBJECT_SUBCLASS::CELLPHONE },
+		{"Laptop", sl::OBJECT_SUBCLASS::LAPTOP },
+		{"Banana", sl::OBJECT_SUBCLASS::BANANA },
+		{"Apple", sl::OBJECT_SUBCLASS::APPLE },
+		{"Orange", sl::OBJECT_SUBCLASS::ORANGE },
+		{"Carrot", sl::OBJECT_SUBCLASS::CARROT}
+	};
 	void measurement_to_pcl(sl::Mat measurement, pcl::PointCloud<pcl::PointXYZRGB>::Ptr &p_pcl_point_cloud);
 	float convertColor(float colorIn);
 	void show_object_on_image(ChangeDetector::DetectedObject object, cv::Mat image_zed_ocv, cv::Point Pixel, sl::Resolution display_resolution, sl::Resolution camera_resolution);
@@ -65,4 +89,6 @@ public:
 	void find_and_reproject_previous_detections_onto_image(cv::Mat image_zed_ocv, pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud, 
 		std::vector<ChangeDetector::DetectedObject>&  PreviouslyDetectedObjects, sl::Pose cam_pose, sl::InitParameters init_parameters, sl::CameraParameters calib_param_, 
 		sl::Resolution display_resolution, sl::Resolution resolution);
+	void find_and_show_previous_detections_on_pointcloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud, std::vector<ChangeDetector::DetectedObject>& PreviouslyDetectedObjects,
+		sl::Pose cam_pose, sl::InitParameters init_parameters, sl::CameraParameters calib_param_, std::vector<sl::ObjectData>& object_list);
 };

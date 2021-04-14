@@ -68,7 +68,7 @@ void render_2D(cv::Mat &left_display, sl::float2 img_scale, std::vector<sl::Obje
                 overlay(roi).setTo(base_color);            
 
             auto position_image = getImagePosition(obj.bounding_box_2d, img_scale);
-            putText(left_display,  toString(obj.label).get(), cv::Point2d(position_image.x - 20, position_image.y - 12),
+            putText(left_display,  toString(obj.sublabel).get(), cv::Point2d(position_image.x - 20, position_image.y - 12),
                         cv::FONT_HERSHEY_COMPLEX_SMALL, 0.5, cv::Scalar(255, 255, 255, 255), 1 );
 
             //if (std::isfinite(obj.position.z)) {

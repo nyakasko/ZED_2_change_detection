@@ -752,10 +752,16 @@ void GLViewer::updateData(std::vector<sl::ObjectData>& objs, sl::Transform& pose
 
                 if (objs[i].tracking_state != sl::OBJECT_TRACKING_STATE::OK)
                     clr_id = clr_class;
-                else
-                    createIDRendering(objs[i].position, clr_id, objs[i].id);
+                else {
+                    if (objs[i].id == -10) {
+                        createIDRendering_prev(objs[i].position, clr_id, objs[i].id, objs[i].sublabel, objs[i].confidence);
+                    }
+                    else {
+                        createIDRendering_verbose(objs[i].position, clr_id, objs[i].id, objs[i].sublabel, objs[i].confidence);
+                    }
+                }
 
-                if (0) { // display centroid as a cross
+                if (1) { // display centroid as a cross
                     sl::float3 centroid = objs[i].position;
                     const float size_cendtroid = 50; // mm
                     sl::float3 centroid1 = centroid;
@@ -944,6 +950,22 @@ void CameraGL::update() {
 void GLViewer::createIDRendering(sl::float3& center, sl::float4 clr, unsigned int id) {
     ObjectClassName tmp;
     tmp.name = "ID: " + std::to_string(id);
+    tmp.color = clr;
+    tmp.position = center; // Reference point
+    objectsName.push_back(tmp);
+}
+void GLViewer::createIDRendering_prev(sl::float3& center, sl::float4 clr, unsigned int id, sl::OBJECT_SUBCLASS sublabel, float confidence) {
+    ObjectClassName tmp;
+    tmp.name = "Previously detected " + (std::string)sl::toString(sublabel) + " " + std::to_string((int)confidence) + "%";;
+        //"ID: " + std::to_string(id);
+    tmp.color = clr;
+    tmp.position = center; // Reference point
+    objectsName.push_back(tmp);
+}
+void GLViewer::createIDRendering_verbose(sl::float3& center, sl::float4 clr, unsigned int id, sl::OBJECT_SUBCLASS sublabel, float confidence) {
+    ObjectClassName tmp;
+    tmp.name = (std::string)sl::toString(sublabel) + " " + std::to_string((int)confidence) + "%";;
+    //"ID: " + std::to_string(id);
     tmp.color = clr;
     tmp.position = center; // Reference point
     objectsName.push_back(tmp);

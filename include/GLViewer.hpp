@@ -254,6 +254,8 @@ private:
     void printText();
     void createBboxRendering(std::vector<sl::float3>& bbox, sl::float4 bbox_clr);
     void createIDRendering(sl::float3& center, sl::float4 clr, unsigned int id);
+    void createIDRendering_prev(sl::float3& center, sl::float4 clr, unsigned int id, sl::OBJECT_SUBCLASS sublabel, float confidence);
+    void createIDRendering_verbose(sl::float3& center, sl::float4 clr, unsigned int id, sl::OBJECT_SUBCLASS sublabel, float confidence);
 
     // Glut functions callbacks
     static void drawCallback();

@@ -693,3 +693,31 @@ void ChangeDetector::find_and_reproject_previous_detections_onto_image(cv::Mat i
         }
     }
 }
+
+void ChangeDetector::find_and_show_previous_detections_on_pointcloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud, std::vector<ChangeDetector::DetectedObject>& PreviouslyDetectedObjects,
+    sl::Pose cam_pose, sl::InitParameters init_parameters, sl::CameraParameters calib_param_, std::vector<sl::ObjectData>& object_list) {
+    pcl::PointXYZRGB min_, max_;
+    pcl::getMinMax3D(*p_pcl_point_cloud, min_, max_);
+    for (auto prev_obj : PreviouslyDetectedObjects) {
+        auto posi_ = prev_obj.position;
+        if ((posi_.x < max_.x && posi_.x > min_.x) && (posi_.y < max_.y && posi_.y > min_.y) && (posi_.z < max_.z && posi_.z > min_.z)) {
+            sl::Translation new_position = transform_p_world_to_p_cam(posi_, cam_pose);
+            if (new_position.z > 0 || new_position.z < (-1) * init_parameters.depth_maximum_distance) continue;
+            cv::Point Pixel = _3d_point_to_2d_pixel(new_position, calib_param_);
+            if (Pixel.x < 0 || Pixel.y < 0 || Pixel.x >= calib_param_.image_size.width || Pixel.y >= calib_param_.image_size.height) continue;
+            // Convert into sl::Object
+            sl::ObjectData prev_Obj;
+            auto it = get_sl_subclass.find(prev_obj.label);
+            prev_Obj.label = sl::getObjectClass(it->second);
+            prev_Obj.sublabel = it->second;
+            prev_Obj.id = -10;
+            prev_Obj.tracking_state = sl::OBJECT_TRACKING_STATE::OK;
+            prev_Obj.action_state = sl::OBJECT_ACTION_STATE::IDLE;
+            prev_Obj.position = prev_obj.position;
+            prev_Obj.bounding_box_2d = { {0,0}, {0,0}, {0,0}, {0,0} }; // prev_obj.bounding_box_2d;
+            prev_Obj.bounding_box = prev_obj.bounding_box_3d;
+            prev_Obj.confidence = (float)prev_obj.confidence;
+            object_list.push_back(prev_Obj);
+        }
+    }
+}

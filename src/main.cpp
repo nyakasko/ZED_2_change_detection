@@ -2,12 +2,12 @@
 #include <sl/Camera.hpp>
 
 // Sample includes
-#include <math.h>
-#include <algorithm>
 #include "GLViewer.hpp"
 #include "TrackingViewer.hpp"
 #include "ChangeDetection.hpp"
 #include <opencv2/opencv.hpp>
+#include <math.h>
+#include <algorithm>
 #include <pcl/common/common_headers.h>
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/filters/crop_box.h>
@@ -15,14 +15,15 @@
 #include <pcl/search/search.h>
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/io/ply_io.h>
-#include <pcl/surface/convex_hull.h>
 #include <filesystem>
 #include <iostream>
-#include <libqhullcpp/Qhull.h>
+//#include <pcl/surface/convex_hull.h>
+//#include <libqhullcpp/Qhull.h>
 
 // Using std and sl namespaces
 using namespace std;
 using namespace sl;
+
 // macro for showing the 3d pointclouds segmented by their 3d bounding boxes
 #define SHOW_SEGMENTED 0
 // macro for deciding if the code runs for the t[i] or t[i+1] time - t[i] -> data association, t[i+1] ->change detection
@@ -312,6 +313,11 @@ int main(int argc, char **argv) {
             // Displaying previous detections on the new run's image
             changedetector.find_and_reproject_previous_detections_onto_image(image_zed_ocv, p_pcl_point_cloud, PreviouslyDetectedObjects, cam_pose,
                 init_parameters, calib_param_, display_resolution, resolution);
+#endif
+#if !show_pointcloud_in_pcl && !first_run
+            // Displaying previous detections on the new run's pointcloud
+            changedetector.find_and_show_previous_detections_on_pointcloud(p_pcl_point_cloud, PreviouslyDetectedObjects, cam_pose, init_parameters, calib_param_, objects.object_list);
+            viewer.updateData(objects.object_list, pose.pose_data);
 #endif
 
             // as image_zed_ocv is a ref of image_left, it contains directly the new grabbed image
