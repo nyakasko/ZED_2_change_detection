@@ -225,7 +225,7 @@ public:
     bool isAvailable();
 
     GLenum init(int argc, char **argv, sl::CameraParameters param, sl::FusedPointCloud* ptr, sl::MODEL zed_model);   
-    GLenum init2(int argc, char **argv, sl::CameraParameters param, sl::FusedPointCloud* ptr, sl::MODEL zed_model);   
+
     void updatePose(sl::Pose pose_, sl::POSITIONAL_TRACKING_STATE tracking_state);
     
     void updateChunks() {

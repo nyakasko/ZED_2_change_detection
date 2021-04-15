@@ -240,8 +240,8 @@ std::shared_ptr<pcl::visualization::PCLVisualizer> ChangeDetector::createRGBVisu
 
 /**
  * This function does a KdTree-search to find the nearest neighbor of each point of 'pcl_sample' in 'pcl_ref'
- * input1: reference pointcloud, where we look for the closes neigbor
- * input2: sample pointcloud, whose closest neighbors we want to find
+ * input1: reference pointcloud, where we look for the closest neigbours
+ * input2: sample pointcloud, whose closest neighbours we want to find
  * input3: distance threshold
  * return: percentage of point-pairs, whose distance is below the distance threshold
  **/

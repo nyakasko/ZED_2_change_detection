@@ -294,6 +294,7 @@ int main(int argc, char **argv) {
 
             pcl::PointXYZRGB min_, max_;
             pcl::getMinMax3D(*p_pcl_point_cloud, min_, max_);
+            // Querying the PREVIOUS DETECTIONS to see if they are visible in the current state and comparing them with the current detections
             for (auto prev_obj : PreviouslyDetectedObjects) {
                 auto posi_ = prev_obj.position;
                 if ((posi_.x < max_.x && posi_.x > min_.x) && (posi_.y < max_.y && posi_.y > min_.y) && (posi_.z < max_.z && posi_.z > min_.z)) {
@@ -310,21 +311,35 @@ int main(int argc, char **argv) {
                     if (DetectedObjects.size() > 0) {
                         auto close_ids = changedetector.return_closest_objects<sl::ObjectData>(DetectedObjects, found_prev, 1000, false); // distance of bounding box centroids
                         if (close_ids.size() == 0) { // IF A PREVIOUSLY DETECTED OBJECT IS NOT FOUND ANYMORE
-                            changedetector.change_removed_or_unexpected_object<sl::ObjectData>(image_zed_ocv, found_prev, display_resolution, resolution);
+                            changedetector.display_change_or_no_change_of_object<sl::ObjectData>(image_zed_ocv, found_prev, display_resolution, resolution);
+                        }
+                        else {
+                            for (int talalt_id = 0; talalt_id < close_ids.size(); talalt_id++) {
+                                float percentage = changedetector.knn_search(DetectedObjects[close_ids[talalt_id]].object_3d_pointcloud, prev_obj.object_3d_pointcloud, 10000); // squared distance of neighbourpoints
+
+                                if (percentage > 0.5) {
+                                    // SAME OBJECT
+                                    changedetector.display_change_or_no_change_of_object<sl::ObjectData>(image_zed_ocv, found_prev, display_resolution, resolution, false);
+                                }
+                                else {
+                                    // NOT THE SAME OBJECT
+                                    changedetector.display_change_or_no_change_of_object<sl::ObjectData>(image_zed_ocv, found_prev, display_resolution, resolution);
+                                }
+                            }
                         }
                     }
                     else { // IF A PREVIOUSLY DETECTED OBJECT IS NOT FOUND ANYMORE
-                        changedetector.change_removed_or_unexpected_object<sl::ObjectData>(image_zed_ocv, found_prev, display_resolution, resolution);
+                        changedetector.display_change_or_no_change_of_object<sl::ObjectData>(image_zed_ocv, found_prev, display_resolution, resolution);
                     }
                 }
 
             }
-
+            // Querying the CURRENT DETECTIONS to see if they match the previous detections or not
             if (DetectedObjects.size() > 0) {
                 for (auto detected_obj : objects.object_list) {
                     auto ids = changedetector.return_closest_objects<sl::ObjectData>(PreviouslyDetectedObjects, detected_obj, 1000, false); // distance of bounding box centroids
                     if (ids.size() == 0) { // IF A NEWLY DETECTED OBJECT WAS NOT THERE IN THE PREVIOUS RUN
-                        changedetector.change_removed_or_unexpected_object<sl::ObjectData>(image_zed_ocv, detected_obj, display_resolution, resolution);
+                        changedetector.display_change_or_no_change_of_object<sl::ObjectData>(image_zed_ocv, detected_obj, display_resolution, resolution);
                     }
                 }
             }

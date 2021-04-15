@@ -92,7 +92,7 @@ public:
 	sl::ObjectData add_previous_detections_to_sl_objects(ChangeDetector::DetectedObject prev_obj, sl::Pose cam_pose, sl::InitParameters init_parameters,
 		sl::CameraParameters calib_param_, std::vector<sl::ObjectData>& object_list, cv::Point Pixel);
 	template <class T>
-	void change_removed_or_unexpected_object(cv::Mat image_zed_ocv, T found_prev, sl::Resolution display_resolution, sl::Resolution resolution);
+	void display_change_or_no_change_of_object(cv::Mat image_zed_ocv, T found_prev, sl::Resolution display_resolution, sl::Resolution resolution, bool change);
 };
 
 
@@ -147,7 +147,7 @@ std::vector<int> ChangeDetector::return_closest_objects(std::vector<ChangeDetect
  * input4: resolution of the camera
  **/
 template <class T>
-void ChangeDetector::change_removed_or_unexpected_object(cv::Mat image_zed_ocv, T found_prev, sl::Resolution display_resolution, sl::Resolution resolution) {
+void ChangeDetector::display_change_or_no_change_of_object(cv::Mat image_zed_ocv, T found_prev, sl::Resolution display_resolution, sl::Resolution resolution, bool change = true) {
 	//SetConsoleTextAttribute(hConsole, 5);
 	//printf("Detected change - NEW OBJECT %s, because there were no newly detected close objects.\n", (std::string)sl::toString(found_prev.sublabel));
 	//SetConsoleTextAttribute(hConsole, 15);
@@ -172,10 +172,12 @@ void ChangeDetector::change_removed_or_unexpected_object(cv::Mat image_zed_ocv, 
 	// scaled ROI
 	cv::Rect roi(top_left_corner, bottom_right_corner);
 	if (roi.x >= 0 && roi.y >= 0 && roi.width + roi.x < image_zed_ocv.cols && roi.height + roi.y < image_zed_ocv.rows) {
-		overlay(roi).setTo(cv::Scalar(0, 165, 255, 255));
+		if (change) overlay(roi).setTo(cv::Scalar(0, 165, 255, 255));
+		else overlay(roi).setTo(cv::Scalar(34, 139, 34, 255));
 		cv::addWeighted(image_zed_ocv, 0.5, overlay, 0.5, 0.0, image_zed_ocv);
 		cv::Point below = bottom_left_corner + cv::Point(0, 15);
-		cv::putText(image_zed_ocv, "CHANGE", below, cv::FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(0, 165, 255, 255), 1);
+		if (change)	cv::putText(image_zed_ocv, "CHANGE", below, cv::FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(0, 165, 255, 255), 1);
+		else cv::putText(image_zed_ocv, "MATCH", below, cv::FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(34, 139, 34, 255), 1);
 
 	}
 }
