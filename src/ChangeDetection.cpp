@@ -6,7 +6,6 @@
 using boost::property_tree::ptree;
 using boost::property_tree::xml_writer_settings;
 void save_data_association_result(ChangeDetector::DetectedObject& DetectedObject, std::string writePath, ptree& object);
-bool sortbysec(std::tuple<int, float>& a, std::tuple<int, float>& b);
 
 /**
  * This function convert a RGBA color packed into a packed RGBA PCL compatible format
@@ -140,7 +139,7 @@ void ChangeDetector::segment_and_show_bounding_box_from_point_cloud(std::shared_
  * This function segments an object from a pointcloud based on its bounding box
  * input1: 3D bounding box
  * input2: pcl pointcloud to segment from
- * input3: pcl pointcloud to save the segmented object
+ * return: pcl pointcloud to save the segmented object
  **/
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr ChangeDetector::segment_bounding_box(std::vector<sl::float3> bounding_box_3d, pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud) {
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_pcl(new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -173,19 +172,15 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr ChangeDetector::segment_bounding_box(std:
  * input3: resolution of the desired window
  * input4: resolution of the camera and thus the image
  **/
-void ChangeDetector::show_object_on_image(ChangeDetector::DetectedObject object, cv::Mat image_zed_ocv, cv::Point Pixel, sl::Resolution display_resolution, sl::Resolution camera_resolution) {
+void ChangeDetector::show_object_on_image(ChangeDetector::DetectedObject object, cv::Mat image_zed_ocv, cv::Point top_left, cv::Point bottom_right, sl::Resolution display_resolution, sl::Resolution camera_resolution) {
     auto label = object.label;
     auto confidence = object.confidence;
     auto bounding_box = object.bounding_box_2d;
     std::string cv_text = "Previously detected " + label + " " + std::to_string((int)confidence) + "%";
 
-    int width = object.bounding_box_2d[2].x - object.bounding_box_2d[0].x;
-    int height = object.bounding_box_2d[2].y - object.bounding_box_2d[0].y;
+    cv::rectangle(image_zed_ocv, top_left, bottom_right, cv::Scalar(255, 0, 0));
 
-    cv::rectangle(image_zed_ocv, resize_boundingbox_coordinates(Pixel.x - width / 2, Pixel.y - height / 2, display_resolution, camera_resolution),
-        resize_boundingbox_coordinates(Pixel.x + width / 2, Pixel.y + height / 2, display_resolution, camera_resolution), cv::Scalar(255, 0, 0));
-
-    cv::putText(image_zed_ocv, cv_text, resize_boundingbox_coordinates(Pixel.x - width / 2, Pixel.y - height / 2 - 10, display_resolution, camera_resolution), cv::FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(255, 0, 0), 1);
+    cv::putText(image_zed_ocv, cv_text, cv::Point(top_left.x, top_left.y - 10), cv::FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(255, 0, 0), 1);
 }
 
 /**
@@ -202,9 +197,9 @@ void ChangeDetector::show_object_detection_on_image(sl::Objects objects, cv::Mat
             auto confidence = objects.object_list[index].confidence;
             auto bounding_box = objects.object_list.at(index).bounding_box_2d;
             std::string cv_text = (std::string)sl::toString(label) + " " + std::to_string((int)confidence) + "%";
-            cv::rectangle(image_zed_ocv, resize_boundingbox_coordinates(bounding_box[0].x, bounding_box[0].y, display_resolution, camera_resolution),
-                resize_boundingbox_coordinates(bounding_box[2].x, bounding_box[2].y, display_resolution, camera_resolution), cv::Scalar(255, 0, 0));
-            cv::putText(image_zed_ocv, cv_text, resize_boundingbox_coordinates(bounding_box[0].x, bounding_box[0].y - 10, display_resolution, camera_resolution), cv::FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(255, 0, 0), 1);
+            cv::rectangle(image_zed_ocv, resize_coordinates(bounding_box[0].x, bounding_box[0].y, display_resolution, camera_resolution),
+                resize_coordinates(bounding_box[2].x, bounding_box[2].y, display_resolution, camera_resolution), cv::Scalar(255, 0, 0));
+            cv::putText(image_zed_ocv, cv_text, resize_coordinates(bounding_box[0].x, bounding_box[0].y - 10, display_resolution, camera_resolution), cv::FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(255, 0, 0), 1);
         }
     }
     cv::createTrackbar("Confidence", "ZED View", &detection_confidence, 100);
@@ -220,7 +215,7 @@ void ChangeDetector::show_object_detection_on_image(sl::Objects objects, cv::Mat
  * input4: resolution of the camera and thus the image
  * return: resized (x, y) coordinates
  **/
-cv::Point ChangeDetector::resize_boundingbox_coordinates(int x, int y, sl::Resolution display_resolution, sl::Resolution camera_resolution) {
+cv::Point ChangeDetector::resize_coordinates(int x, int y, sl::Resolution display_resolution, sl::Resolution camera_resolution) {
     float ratio_width = (float)((float)display_resolution.width / camera_resolution.width);
     float ratio_height = (float)((float)display_resolution.height / camera_resolution.height);
     float x_new = (float)((float)x * ratio_width);
@@ -285,46 +280,6 @@ float ChangeDetector::knn_search(pcl::PointCloud<pcl::PointXYZRGB>::Ptr pcl_ref,
 }
 
 /**
- * This function returns those objects' ids whose centroids' Eucledian distance is below the 'centroid_distance' threshold
- * input1: list of detected objects
- * input2: new detected object
- * input3: centroid distance threshold
- * return: ids of the closest previously detected objects
- **/
-std::vector<int> ChangeDetector::return_closest_objects(std::vector<ChangeDetector::DetectedObject> DetectedObjects, ChangeDetector::DetectedObject newDetectedObject, int centroid_distance, bool verbose = false) {
-    std::vector<int> closest_objects;
-    std::vector<std::tuple<int, float>> pairedIndicesAndDistances;
-    auto detected_posi = newDetectedObject.position;
-    for (int i = 0; i < DetectedObjects.size(); i++) {
-        float distance = sqrt(pow(detected_posi.x - DetectedObjects[i].position.x, 2) +
-            pow(detected_posi.y - DetectedObjects[i].position.y, 2) +
-            pow(detected_posi.z - DetectedObjects[i].position.z, 2) * 1.0);
-        pairedIndicesAndDistances.push_back(std::make_tuple(i, distance));
-    }
-    sort(pairedIndicesAndDistances.begin(), pairedIndicesAndDistances.end(), sortbysec);
-    for (int elem = 0; elem < DetectedObjects.size(); elem++) {
-        if (verbose) {
-            std::cout << "Distance to " << DetectedObjects[std::get<0>(pairedIndicesAndDistances[elem])].label
-                << " " << std::get<0>(pairedIndicesAndDistances[elem]) << " stored element: " << std::get<1>(pairedIndicesAndDistances[elem]) << std::endl;
-        }
-        if (std::get<1>(pairedIndicesAndDistances[elem]) < centroid_distance) {
-            closest_objects.push_back(std::get<0>(pairedIndicesAndDistances[elem]));
-        }
-    }
-    return closest_objects;
-}
-
-/**
- * This is a comparison function to sort the vector elements by second element of tuples
- * input1: first tuple to compare
- * input2: second tuple to compare
- * return: True if a < b, otherwise False
- **/
-bool sortbysec(std::tuple<int, float>& a, std::tuple<int, float>& b) {
-    return (std::get<1>(a) < std::get<1>(b));
-}
-
-/**
  * This function registers the object detected by zed according to the change detection object structure
  * input1: object detected by ZED
  * input2: change detection object structure element
@@ -372,15 +327,16 @@ void ChangeDetector::data_association_of_detected_objects(pcl::PointCloud<pcl::P
     bool should_add = true;
     if (!objects.object_list.empty()) {
         for (int index = 0; index < objects.object_list.size(); index++) {
+            if (objects.object_list[index].id == -10) continue; // don't save one of the previously detected objects (those have an id=-10)
             ChangeDetector::DetectedObject newDetectedObject;
             registerNewObject(objects.object_list[index], newDetectedObject, p_pcl_point_cloud, verbose);
 
             if (newDetectedObject.has_object_3d_pointcloud == true && newDetectedObject.object_3d_pointcloud->points.size() > 100 && newDetectedObject.ismoving == false) {
                 if (DetectedObjects.size() > 0) {
-                    auto ids = return_closest_objects(DetectedObjects, newDetectedObject, eucl_dist, verbose); // distance of bounding box centroids
-                    std::string writePath = "D:/zed codes/zed_change_pcl/build/obj_pcls/" + newDetectedObject.label + "_" + std::to_string(DetectedObjects.size()) + ".ply";
+                    auto ids = return_closest_objects<ChangeDetector::DetectedObject>(DetectedObjects, newDetectedObject, eucl_dist, verbose); // distance of bounding box centroids
+                    //std::string writePath = "D:/zed codes/zed_change_pcl/build/obj_pcls/" + newDetectedObject.label + "_" + std::to_string(DetectedObjects.size()) + ".ply";
+                    //pcl::io::savePLYFileBinary(writePath, *newDetectedObject.object_3d_pointcloud);
 
-                    pcl::io::savePLYFileBinary(writePath, *newDetectedObject.object_3d_pointcloud);
                     int track = newDetectedObject.tracking_id;
                     auto talalt_it = std::find_if(DetectedObjects.begin(), DetectedObjects.end(), [&track](const ChangeDetector::DetectedObject& obj) {return obj.tracking_id == track; });
                     if (talalt_it != DetectedObjects.end()) track_index = std::distance(DetectedObjects.begin(), talalt_it);
@@ -658,72 +614,80 @@ cv::Point ChangeDetector::_3d_point_to_2d_pixel(sl::Translation new_position, sl
 
 /**
  * This function queries the previously detected objects and reprojects them onto the new run's image 
- * input1: opencv image
- * input2: the current pointcloud that the ZED camera computed
- * input3: previously detected object structure
- * input4: camera pose
+ * input1: the previously detected object
+ * input2: opencv image
+ * input3: camera pose
  * input5: initial parameters of the camera
  * input6: calibration parameters of the camera
  * input7: display resolution of the opencv image
  * input8: resolution of the camera
+ * input9: the Pixel which is the reprojection of the object's 3d location onto the 2d image plane
  **/
-void ChangeDetector::find_and_reproject_previous_detections_onto_image(cv::Mat image_zed_ocv, 
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud, std::vector<ChangeDetector::DetectedObject>& PreviouslyDetectedObjects,
-    sl::Pose cam_pose, sl::InitParameters init_parameters, sl::CameraParameters calib_param_, sl::Resolution display_resolution, sl::Resolution resolution) {
+void ChangeDetector::find_and_reproject_previous_detections_onto_image(ChangeDetector::DetectedObject& prev_obj, cv::Mat image_zed_ocv, sl::Pose cam_pose, sl::InitParameters init_parameters,
+    sl::CameraParameters calib_param_, sl::Resolution display_resolution, sl::Resolution resolution, cv::Point Pixel) {
 
-    pcl::PointXYZRGB min_, max_;
-    pcl::getMinMax3D(*p_pcl_point_cloud, min_, max_);
-    for (auto prev_obj : PreviouslyDetectedObjects) {
-        auto posi_ = prev_obj.position;
-        if ((posi_.x < max_.x && posi_.x > min_.x) && (posi_.y < max_.y && posi_.y > min_.y) && (posi_.z < max_.z && posi_.z > min_.z)) {
-            sl::Translation new_position = transform_p_world_to_p_cam(posi_, cam_pose);
-            if (new_position.z > 0 || new_position.z < (-1) * init_parameters.depth_maximum_distance) continue;
-            cv::Point Pixel = _3d_point_to_2d_pixel(new_position, calib_param_);
-            if (Pixel.x < 0 || Pixel.y < 0 || Pixel.x >= calib_param_.image_size.width || Pixel.y >= calib_param_.image_size.height) continue;
-            // Draw bounding box around the previously detected object
-            show_object_on_image(prev_obj, image_zed_ocv, Pixel, display_resolution, resolution);
-
-            // Transform 3d points to 2d pixels and draw them onto 2D image
-            for (auto points_ : prev_obj.object_3d_pointcloud->points) {
-                sl::Translation point_tr = { points_.x, points_.y, points_.z };
-                sl::Translation new_position = transform_p_world_to_p_cam(point_tr, cam_pose);
-                cv::Point Pixel = _3d_point_to_2d_pixel(new_position, calib_param_);
-                auto new_pixel = resize_boundingbox_coordinates(Pixel.x, Pixel.y, display_resolution, resolution);
-                if (new_pixel.x < image_zed_ocv.cols && new_pixel.x > 0 && new_pixel.y < image_zed_ocv.rows && new_pixel.y > 0) {
-                    image_zed_ocv.at<cv::Vec4b>(new_pixel.y, new_pixel.x)[0] = points_.b;
-                    image_zed_ocv.at<cv::Vec4b>(new_pixel.y, new_pixel.x)[1] = points_.g;
-                    image_zed_ocv.at<cv::Vec4b>(new_pixel.y, new_pixel.x)[2] = points_.r;
-                    image_zed_ocv.at<cv::Vec4b>(new_pixel.y, new_pixel.x)[3] = points_.a;
-                }
-            }
+    cv::Point resized_pix = resize_coordinates(Pixel.x, Pixel.y, display_resolution, resolution);
+    cv::Point top_left = cv::Point(display_resolution.width, display_resolution.height);
+    cv::Point top_right = cv::Point(0, display_resolution.height);
+    cv::Point bottom_right = cv::Point(0, 0);
+    cv::Point bottom_left = cv::Point(display_resolution.width, 0);
+    // Transform 3d points to 2d pixels and draw them onto 2D image
+    for (auto points_ : prev_obj.object_3d_pointcloud->points) {
+        sl::Translation point_tr = { points_.x, points_.y, points_.z };
+        sl::Translation new_position = transform_p_world_to_p_cam(point_tr, cam_pose);
+        cv::Point Pixel_ = _3d_point_to_2d_pixel(new_position, calib_param_);
+        auto new_pixel = resize_coordinates(Pixel_.x, Pixel_.y, display_resolution, resolution);
+        if (new_pixel.x < image_zed_ocv.cols && new_pixel.x > 0 && new_pixel.y < image_zed_ocv.rows && new_pixel.y > 0) {
+            if (new_pixel.x <= top_left.x) top_left.x = new_pixel.x;
+            if (new_pixel.y <= top_left.y) top_left.y = new_pixel. y;
+            if (new_pixel.x >= bottom_right.x) bottom_right.x = new_pixel.x;
+            if (new_pixel.y >= bottom_right.y) bottom_right.y = new_pixel.y;
+            if (new_pixel.x >= top_right.x) top_right.x = new_pixel.x;
+            if (new_pixel.y <= top_right.y) top_right.y = new_pixel.y;
+            if (new_pixel.x <= bottom_left.x) bottom_left.x = new_pixel.x;
+            if (new_pixel.y >= bottom_left.y) bottom_left.y = new_pixel.y;
+            image_zed_ocv.at<cv::Vec4b>(new_pixel.y, new_pixel.x)[0] = points_.b;
+            image_zed_ocv.at<cv::Vec4b>(new_pixel.y, new_pixel.x)[1] = points_.g;
+            image_zed_ocv.at<cv::Vec4b>(new_pixel.y, new_pixel.x)[2] = points_.r;
+            image_zed_ocv.at<cv::Vec4b>(new_pixel.y, new_pixel.x)[3] = points_.a;
         }
     }
+
+    // Draw bounding box around the previously detected object
+    show_object_on_image(prev_obj, image_zed_ocv, top_left, bottom_right, display_resolution, resolution);
+
+    sl::uint2 A = { (unsigned int)top_left.x, (unsigned int)top_left.y };
+    sl::uint2 B = { (unsigned int)top_right.x, (unsigned int)top_right.y };
+    sl::uint2 C = { (unsigned int)bottom_right.x, (unsigned int)bottom_right.y };
+    sl::uint2 D = { (unsigned int)bottom_left.x, (unsigned int)bottom_left.y };
+    prev_obj.bounding_box_2d = { A, B, C, D };
 }
 
-void ChangeDetector::add_previous_detections_to_sl_objects(pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud, std::vector<ChangeDetector::DetectedObject>& PreviouslyDetectedObjects,
-    sl::Pose cam_pose, sl::InitParameters init_parameters, sl::CameraParameters calib_param_, std::vector<sl::ObjectData>& object_list) {
-    pcl::PointXYZRGB min_, max_;
-    pcl::getMinMax3D(*p_pcl_point_cloud, min_, max_);
-    for (auto prev_obj : PreviouslyDetectedObjects) {
-        auto posi_ = prev_obj.position;
-        if ((posi_.x < max_.x && posi_.x > min_.x) && (posi_.y < max_.y && posi_.y > min_.y) && (posi_.z < max_.z && posi_.z > min_.z)) {
-            sl::Translation new_position = transform_p_world_to_p_cam(posi_, cam_pose);
-            if (new_position.z > 0 || new_position.z < (-1) * init_parameters.depth_maximum_distance) continue;
-            cv::Point Pixel = _3d_point_to_2d_pixel(new_position, calib_param_);
-            if (Pixel.x < 0 || Pixel.y < 0 || Pixel.x >= calib_param_.image_size.width || Pixel.y >= calib_param_.image_size.height) continue;
-            // Convert into sl::Object
-            sl::ObjectData prev_Obj;
-            auto it = get_sl_subclass.find(prev_obj.label);
-            prev_Obj.label = sl::getObjectClass(it->second);
-            prev_Obj.sublabel = it->second;
-            prev_Obj.id = -10;
-            prev_Obj.tracking_state = sl::OBJECT_TRACKING_STATE::OK;
-            prev_Obj.action_state = sl::OBJECT_ACTION_STATE::IDLE;
-            prev_Obj.position = prev_obj.position;
-            prev_Obj.bounding_box_2d = { {0,0}, {0,0}, {0,0}, {0,0} }; // prev_obj.bounding_box_2d;
-            prev_Obj.bounding_box = prev_obj.bounding_box_3d;
-            prev_Obj.confidence = (float)prev_obj.confidence;
-            object_list.push_back(prev_Obj);
-        }
-    }
+/**
+ * This function adds a previously detected object to the list of currently detected objects if that object is visible in the new run 
+ * input1: the previously detected object
+ * input2: camera pose
+ * input4: initial parameters of the camera
+ * input5: calibration parameters of the camera
+ * input6: new, detected list of objects
+ * input7: the Pixel which is the reprojection of the object's 3d location onto the 2d image plane
+ **/
+sl::ObjectData ChangeDetector::add_previous_detections_to_sl_objects(ChangeDetector::DetectedObject prev_obj, sl::Pose cam_pose, sl::InitParameters init_parameters,
+    sl::CameraParameters calib_param_, std::vector<sl::ObjectData>& object_list, cv::Point Pixel) {
+
+    // Convert into sl::Object
+    sl::ObjectData prev_Obj;
+    auto it = get_sl_subclass.find(prev_obj.label);
+    prev_Obj.label = sl::getObjectClass(it->second);
+    prev_Obj.sublabel = it->second;
+    prev_Obj.id = -10;
+    prev_Obj.tracking_state = sl::OBJECT_TRACKING_STATE::OK;
+    prev_Obj.action_state = sl::OBJECT_ACTION_STATE::IDLE;
+    prev_Obj.position = prev_obj.position;
+    prev_Obj.bounding_box_2d = prev_obj.bounding_box_2d;
+    prev_Obj.bounding_box = prev_obj.bounding_box_3d;
+    prev_Obj.confidence = (float)prev_obj.confidence;
+    object_list.push_back(prev_Obj);
+
+    return prev_Obj;
 }

@@ -43,6 +43,7 @@ void render_2D(cv::Mat &left_display, sl::float2 img_scale, std::vector<sl::Obje
     const int line_thickness = 2;
     for (auto i = objects.rbegin(); i != objects.rend(); ++i) {
         sl::ObjectData& obj = (*i);
+        if (obj.id == -10) continue;
         if(renderObject(obj)) {
             cv::Scalar base_color = generateColorID_u(obj.id);
 

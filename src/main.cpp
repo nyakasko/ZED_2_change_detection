@@ -289,11 +289,46 @@ int main(int argc, char **argv) {
             // Data association
             changedetector.data_association_of_detected_objects(p_pcl_point_cloud, objects, DetectedObjects, 1000, 10000, false); //eucl_dist and kd_dist and verbose
 #else
-            // Displaying previous detections on the new run's IMAGE
-            changedetector.find_and_reproject_previous_detections_onto_image(image_zed_ocv, p_pcl_point_cloud, PreviouslyDetectedObjects, cam_pose,
-                init_parameters, calib_param_, display_resolution, resolution);
-            // Adding previous detections to the object list and displaying them later on the new run's POINTCLOUD
-            changedetector.add_previous_detections_to_sl_objects(p_pcl_point_cloud, PreviouslyDetectedObjects, cam_pose, init_parameters, calib_param_, objects.object_list);
+            // Data association
+            changedetector.data_association_of_detected_objects(p_pcl_point_cloud, objects, DetectedObjects, 1000, 10000, false); //eucl_dist and kd_dist and verbose
+
+            pcl::PointXYZRGB min_, max_;
+            pcl::getMinMax3D(*p_pcl_point_cloud, min_, max_);
+            for (auto prev_obj : PreviouslyDetectedObjects) {
+                auto posi_ = prev_obj.position;
+                if ((posi_.x < max_.x && posi_.x > min_.x) && (posi_.y < max_.y && posi_.y > min_.y) && (posi_.z < max_.z && posi_.z > min_.z)) {
+                    sl::Translation new_position = changedetector.transform_p_world_to_p_cam(posi_, cam_pose);
+                    if (new_position.z > 0 || new_position.z < (-1) * (init_parameters.depth_maximum_distance - 1000.0f)) continue;
+                    cv::Point Pixel = changedetector._3d_point_to_2d_pixel(new_position, calib_param_);
+                    if (Pixel.x < 0 || Pixel.y < 0 || Pixel.x >= calib_param_.image_size.width || Pixel.y >= calib_param_.image_size.height) continue;
+                    // Displaying previous detections on the new run's IMAGE
+                    changedetector.find_and_reproject_previous_detections_onto_image(prev_obj, image_zed_ocv, cam_pose, init_parameters,
+                        calib_param_, display_resolution, resolution, Pixel);
+
+                    // Adding previous detections to the object list and displaying them later on the new run's POINTCLOUD
+                    sl::ObjectData found_prev = changedetector.add_previous_detections_to_sl_objects(prev_obj, cam_pose, init_parameters, calib_param_, objects.object_list, Pixel);
+                    if (DetectedObjects.size() > 0) {
+                        auto close_ids = changedetector.return_closest_objects<sl::ObjectData>(DetectedObjects, found_prev, 1000, false); // distance of bounding box centroids
+                        if (close_ids.size() == 0) { // IF A PREVIOUSLY DETECTED OBJECT IS NOT FOUND ANYMORE
+                            changedetector.change_removed_or_unexpected_object<sl::ObjectData>(image_zed_ocv, found_prev, display_resolution, resolution);
+                        }
+                    }
+                    else { // IF A PREVIOUSLY DETECTED OBJECT IS NOT FOUND ANYMORE
+                        changedetector.change_removed_or_unexpected_object<sl::ObjectData>(image_zed_ocv, found_prev, display_resolution, resolution);
+                    }
+                }
+
+            }
+
+            if (DetectedObjects.size() > 0) {
+                for (auto detected_obj : objects.object_list) {
+                    auto ids = changedetector.return_closest_objects<sl::ObjectData>(PreviouslyDetectedObjects, detected_obj, 1000, false); // distance of bounding box centroids
+                    if (ids.size() == 0) { // IF A NEWLY DETECTED OBJECT WAS NOT THERE IN THE PREVIOUS RUN
+                        changedetector.change_removed_or_unexpected_object<sl::ObjectData>(image_zed_ocv, detected_obj, display_resolution, resolution);
+                    }
+                }
+            }
+
 #endif
 
 #if show_pointcloud_in_pcl
