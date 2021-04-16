@@ -367,7 +367,11 @@ int main(int argc, char **argv) {
 
             // update birds view of tracks based on camera position and detected objects
             track_view_generator.generate_view(objects, cam_pose, image_track_ocv, objects.is_tracked);
+            std::string text = "POSITIONAL TRACKING STATE : " + (std::string)sl::toString(tracking_state);
+            if (tracking_state == sl::POSITIONAL_TRACKING_STATE::OK) putText(image_zed_ocv, text, cv::Point2d(0, 15), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 255, 0, 255), 1);
+            else putText(image_zed_ocv, text, cv::Point2d(0, 15), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255, 255), 1);
             cv::imshow(window_name, global_image);
+
             key = cv::waitKey(10);
             if (key == 'i') {
                 track_view_generator.zoomIn();
