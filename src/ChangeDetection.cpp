@@ -7,6 +7,20 @@ using boost::property_tree::ptree;
 using boost::property_tree::xml_writer_settings;
 void save_data_association_result(ChangeDetector::DetectedObject& DetectedObject, std::string writePath, ptree& object);
 
+bool comparePoint(pcl::PointXYZRGB p1, pcl::PointXYZRGB p2) {
+    if (p1.x != p2.x)
+        return p1.x > p2.x;
+    else if (p1.y != p2.y)
+        return  p1.y > p2.y;
+    else
+        return p1.z > p2.z;
+}
+bool equalPoint(pcl::PointXYZRGB p1, pcl::PointXYZRGB p2) {
+    if (p1.x == p2.x && p1.y == p2.y && p1.z == p2.z)
+        return true;
+    return false;
+}
+
 /**
  * This function convert a RGBA color packed into a packed RGBA PCL compatible format
  * input: ZED rgba float data
@@ -378,6 +392,22 @@ void ChangeDetector::data_association_of_detected_objects(pcl::PointCloud<pcl::P
 
                                     DetectedObjects[ids[i]].bounding_box_3d[pont] = DetectedObjects[ids[i]].bounding_box_3d_sum[pont] / DetectedObjects[ids[i]].overall_detection_num;
                                 }
+
+                                // NAGYON LASSÚ
+                                // Updating object point cloud
+                                auto current_pcl_size = DetectedObjects[ids[i]].object_3d_pointcloud->points.size();
+                                auto new_pcl_size = newDetectedObject.object_3d_pointcloud->points.size();
+                                if (new_pcl_size > current_pcl_size) {
+                                    DetectedObjects[ids[i]].object_3d_pointcloud = newDetectedObject.object_3d_pointcloud;
+                                }
+                                //DetectedObjects[ids[i]].object_3d_pointcloud->points.resize(current_pcl_size + newDetectedObject.object_3d_pointcloud->points.size());
+                                //for (int nIndex = 0; nIndex < newDetectedObject.object_3d_pointcloud->points.size(); nIndex++){
+                                //    int bigIndex = current_pcl_size + nIndex;
+                                //    DetectedObjects[ids[i]].object_3d_pointcloud->points[bigIndex] = newDetectedObject.object_3d_pointcloud->points[nIndex];
+                                //}
+                                //std::sort(DetectedObjects[ids[i]].object_3d_pointcloud->points.begin(), DetectedObjects[ids[i]].object_3d_pointcloud->points.end(), comparePoint);
+                                //auto unique_end = std::unique(DetectedObjects[ids[i]].object_3d_pointcloud->points.begin(), DetectedObjects[ids[i]].object_3d_pointcloud->points.end(), equalPoint);
+                                //DetectedObjects[ids[i]].object_3d_pointcloud->points.erase(unique_end, DetectedObjects[ids[i]].object_3d_pointcloud->points.end());
 
                                 SetConsoleTextAttribute(hConsole, 3);
                                 printf("Updated already existing object %s with id [%d].\n", DetectedObjects[ids[i]].label, DetectedObjects[ids[i]].tracking_id);

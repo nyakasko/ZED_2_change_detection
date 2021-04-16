@@ -309,15 +309,14 @@ int main(int argc, char **argv) {
                     // Adding previous detections to the object list and displaying them later on the new run's POINTCLOUD
                     sl::ObjectData found_prev = changedetector.add_previous_detections_to_sl_objects(prev_obj, cam_pose, init_parameters, calib_param_, objects.object_list, Pixel);
                     if (DetectedObjects.size() > 0) {
-                        auto close_ids = changedetector.return_closest_objects<sl::ObjectData>(DetectedObjects, found_prev, 1000, false); // distance of bounding box centroids
+                        auto close_ids = changedetector.return_closest_objects<sl::ObjectData>(DetectedObjects, found_prev, 1500, false); // distance of bounding box centroids
                         if (close_ids.size() == 0) { // IF A PREVIOUSLY DETECTED OBJECT IS NOT FOUND ANYMORE
                             changedetector.display_change_or_no_change_of_object<sl::ObjectData>(image_zed_ocv, found_prev, display_resolution, resolution);
                         }
                         else {
                             for (int talalt_id = 0; talalt_id < close_ids.size(); talalt_id++) {
                                 float percentage = changedetector.knn_search(DetectedObjects[close_ids[talalt_id]].object_3d_pointcloud, prev_obj.object_3d_pointcloud, 10000); // squared distance of neighbourpoints
-
-                                if (percentage > 0.5) {
+                                if (percentage > 0.4) {
                                     // SAME OBJECT
                                     changedetector.display_change_or_no_change_of_object<sl::ObjectData>(image_zed_ocv, found_prev, display_resolution, resolution, false);
                                 }
@@ -337,6 +336,7 @@ int main(int argc, char **argv) {
             // Querying the CURRENT DETECTIONS to see if they match the previous detections or not
             if (DetectedObjects.size() > 0) {
                 for (auto detected_obj : objects.object_list) {
+                    if (!std::isfinite(detected_obj.position.z)) continue;
                     auto ids = changedetector.return_closest_objects<sl::ObjectData>(PreviouslyDetectedObjects, detected_obj, 1000, false); // distance of bounding box centroids
                     if (ids.size() == 0) { // IF A NEWLY DETECTED OBJECT WAS NOT THERE IN THE PREVIOUS RUN
                         changedetector.display_change_or_no_change_of_object<sl::ObjectData>(image_zed_ocv, detected_obj, display_resolution, resolution);
