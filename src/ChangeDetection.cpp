@@ -6,7 +6,14 @@
 using boost::property_tree::ptree;
 using boost::property_tree::xml_writer_settings;
 void save_data_association_result(ChangeDetector::DetectedObject& DetectedObject, std::string writePath, ptree& object);
+ChangeDetector::ZEDParameters ZEDParameter;
 
+/**
+ * This function is a helper for adding 2 pointclouds together
+ * input1: point1 
+ * input2: point2
+ * return: a boolean value corresponding to the relationship of the 2 inputs
+ **/
 bool comparePoint(pcl::PointXYZRGB p1, pcl::PointXYZRGB p2) {
     if (p1.x != p2.x)
         return p1.x > p2.x;
@@ -15,6 +22,13 @@ bool comparePoint(pcl::PointXYZRGB p1, pcl::PointXYZRGB p2) {
     else
         return p1.z > p2.z;
 }
+
+/**
+ * This function is a helper for adding 2 pointclouds together
+ * input1: point1
+ * input2: point2
+ * return: a boolean value for deciding whether 2 point1 and point2 are the same or not
+ **/
 bool equalPoint(pcl::PointXYZRGB p1, pcl::PointXYZRGB p2) {
     if (p1.x == p2.x && p1.y == p2.y && p1.z == p2.z)
         return true;
@@ -183,10 +197,10 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr ChangeDetector::segment_bounding_box(std:
  * This function shows the 2D bounding boxes of detected objects on an OpenCV window
  * input1: detected objects
  * input2: captured image by ZED - draw the bounding boxes on this image
- * input3: resolution of the desired window
- * input4: resolution of the camera and thus the image
+ * input3: top left pixel of object
+ * input4: btotom right pixel of object
  **/
-void ChangeDetector::show_object_on_image(ChangeDetector::DetectedObject object, cv::Mat image_zed_ocv, cv::Point top_left, cv::Point bottom_right, sl::Resolution display_resolution, sl::Resolution camera_resolution) {
+void ChangeDetector::show_object_on_image(ChangeDetector::DetectedObject object, cv::Mat& image_zed_ocv, cv::Point top_left, cv::Point bottom_right) {
     auto label = object.label;
     auto confidence = object.confidence;
     auto bounding_box = object.bounding_box_2d;
@@ -201,19 +215,18 @@ void ChangeDetector::show_object_on_image(ChangeDetector::DetectedObject object,
  * This function shows the 2D bounding boxes of detected objects on an OpenCV window
  * input1: detected objects
  * input2: captured image by ZED - draw the bounding boxes on this image
- * input3: resolution of the desired window
- * input4: resolution of the camera and thus the image
+ * input3: detection confidence
  **/
-void ChangeDetector::show_object_detection_on_image(sl::Objects objects, cv::Mat image_zed_ocv, sl::Resolution display_resolution, sl::Resolution camera_resolution, int& detection_confidence) {
+void ChangeDetector::show_object_detection_on_image(sl::Objects objects, cv::Mat image_zed_ocv, int& detection_confidence) {
     if (!objects.object_list.empty()) {
         for (int index = 0; index < objects.object_list.size(); index++) {
             auto label = objects.object_list[index].sublabel;
             auto confidence = objects.object_list[index].confidence;
             auto bounding_box = objects.object_list.at(index).bounding_box_2d;
             std::string cv_text = (std::string)sl::toString(label) + " " + std::to_string((int)confidence) + "%";
-            cv::rectangle(image_zed_ocv, resize_coordinates(bounding_box[0].x, bounding_box[0].y, display_resolution, camera_resolution),
-                resize_coordinates(bounding_box[2].x, bounding_box[2].y, display_resolution, camera_resolution), cv::Scalar(255, 0, 0));
-            cv::putText(image_zed_ocv, cv_text, resize_coordinates(bounding_box[0].x, bounding_box[0].y - 10, display_resolution, camera_resolution), cv::FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(255, 0, 0), 1);
+            cv::rectangle(image_zed_ocv, resize_coordinates(bounding_box[0].x, bounding_box[0].y),
+                resize_coordinates(bounding_box[2].x, bounding_box[2].y), cv::Scalar(255, 0, 0));
+            cv::putText(image_zed_ocv, cv_text, resize_coordinates(bounding_box[0].x, bounding_box[0].y - 10), cv::FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(255, 0, 0), 1);
         }
     }
     cv::createTrackbar("Confidence", "ZED View", &detection_confidence, 100);
@@ -223,17 +236,13 @@ void ChangeDetector::show_object_detection_on_image(sl::Objects objects, cv::Mat
 
 /**
  * This function resizes the bounding box coordinates of detected objects to fit the desired resolution of the display window
- * input1: x coordinate of a bounding box corner
- * input2: y coordinate of a bounding box corner
- * input3: resolution of the desired window
- * input4: resolution of the camera and thus the image
+ * input1: x coordinate
+ * input2: y coordinate
  * return: resized (x, y) coordinates
  **/
-cv::Point ChangeDetector::resize_coordinates(int x, int y, sl::Resolution display_resolution, sl::Resolution camera_resolution) {
-    float ratio_width = (float)((float)display_resolution.width / camera_resolution.width);
-    float ratio_height = (float)((float)display_resolution.height / camera_resolution.height);
-    float x_new = (float)((float)x * ratio_width);
-    float y_new = (float)((float)y * ratio_height);
+cv::Point ChangeDetector::resize_coordinates(int x, int y) {
+    float x_new = (float)((float)x * ZEDParameter.ratio_width);
+    float y_new = (float)((float)y * ZEDParameter.ratio_height);
     return cv::Point(int(x_new), int(y_new));
 }
 
@@ -296,9 +305,9 @@ float ChangeDetector::knn_search(pcl::PointCloud<pcl::PointXYZRGB>::Ptr pcl_ref,
 /**
  * This function registers the object detected by zed according to the change detection object structure
  * input1: object detected by ZED
- * input2: change detection object structure element
- * input3: current measured pointcloud
- * input4: verbose print
+ * input2: change detection object structure instance
+ * input3: currently measured pointcloud
+ * input4: verbosity level for debugging
  **/
 void ChangeDetector::registerNewObject(sl::ObjectData zedObject, ChangeDetector::DetectedObject & newDetectedObject, pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud, bool verbose) {
     newDetectedObject.label = (std::string)sl::toString(zedObject.sublabel);
@@ -332,6 +341,9 @@ void ChangeDetector::registerNewObject(sl::ObjectData zedObject, ChangeDetector:
  * input1: pointcloud to segment the objects from
  * input2: new detected objects
  * input3: already detected, stored objects
+ * input4: eucledian distance threshold between the object point cloud centroids
+ * input5: kd nearest neighbour search treshold
+ * input6: verbosity level for debugging
  **/
 void ChangeDetector::data_association_of_detected_objects(pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud, sl::Objects objects,
     std::vector<ChangeDetector::DetectedObject>& DetectedObjects, int eucl_dist, int kd_dis, bool verbose = false) {
@@ -633,12 +645,11 @@ sl::Translation ChangeDetector::transform_p_world_to_p_cam(sl::Translation curre
 /**
  * This function maps a 3d point (wrt to camera frame) to image pixels
  * input1: current 3d position of object wrt camera frame
- * input2: camera calibration parameters
  * returns 2d pixel value (x,y) mapped from the 3d point
  **/
-cv::Point ChangeDetector::_3d_point_to_2d_pixel(sl::Translation new_position, sl::CameraParameters calib_param) {
-    int pixelX = calib_param.cx - (new_position.x * calib_param.fx) / new_position.z;
-    int pixelY = calib_param.cy + (new_position.y * calib_param.fy) / new_position.z;
+cv::Point ChangeDetector::_3d_point_to_2d_pixel(sl::Translation new_position) {
+    int pixelX = ZEDParameter.calib_param_.cx - (new_position.x * ZEDParameter.calib_param_.fx) / new_position.z;
+    int pixelY = ZEDParameter.calib_param_.cy + (new_position.y * ZEDParameter.calib_param_.fy) / new_position.z;
     return cv::Point(pixelX, pixelY);
 }
 
@@ -647,26 +658,21 @@ cv::Point ChangeDetector::_3d_point_to_2d_pixel(sl::Translation new_position, sl
  * input1: the previously detected object
  * input2: opencv image
  * input3: camera pose
- * input5: initial parameters of the camera
- * input6: calibration parameters of the camera
- * input7: display resolution of the opencv image
- * input8: resolution of the camera
- * input9: the Pixel which is the reprojection of the object's 3d location onto the 2d image plane
+ * input4: the pixel(x,y) which is the reprojection of the object's 3d location onto the 2d image plane
  **/
-void ChangeDetector::find_and_reproject_previous_detections_onto_image(ChangeDetector::DetectedObject& prev_obj, cv::Mat image_zed_ocv, sl::Pose cam_pose, sl::InitParameters init_parameters,
-    sl::CameraParameters calib_param_, sl::Resolution display_resolution, sl::Resolution resolution, cv::Point Pixel) {
+void ChangeDetector::find_and_reproject_previous_detections_onto_image(ChangeDetector::DetectedObject& prev_obj, cv::Mat& image_zed_ocv, sl::Pose cam_pose, cv::Point Pixel) {
 
-    cv::Point resized_pix = resize_coordinates(Pixel.x, Pixel.y, display_resolution, resolution);
-    cv::Point top_left = cv::Point(display_resolution.width, display_resolution.height);
-    cv::Point top_right = cv::Point(0, display_resolution.height);
+    cv::Point resized_pix = resize_coordinates(Pixel.x, Pixel.y);
+    cv::Point top_left = cv::Point(ZEDParameter.display_resolution.width, ZEDParameter.display_resolution.height);
+    cv::Point top_right = cv::Point(0, ZEDParameter.display_resolution.height);
     cv::Point bottom_right = cv::Point(0, 0);
-    cv::Point bottom_left = cv::Point(display_resolution.width, 0);
+    cv::Point bottom_left = cv::Point(ZEDParameter.display_resolution.width, 0);
     // Transform 3d points to 2d pixels and draw them onto 2D image
     for (auto points_ : prev_obj.object_3d_pointcloud->points) {
         sl::Translation point_tr = { points_.x, points_.y, points_.z };
         sl::Translation new_position = transform_p_world_to_p_cam(point_tr, cam_pose);
-        cv::Point Pixel_ = _3d_point_to_2d_pixel(new_position, calib_param_);
-        auto new_pixel = resize_coordinates(Pixel_.x, Pixel_.y, display_resolution, resolution);
+        cv::Point Pixel_ = _3d_point_to_2d_pixel(new_position);
+        auto new_pixel = resize_coordinates(Pixel_.x, Pixel_.y);
         if (new_pixel.x < image_zed_ocv.cols && new_pixel.x > 0 && new_pixel.y < image_zed_ocv.rows && new_pixel.y > 0) {
             if (new_pixel.x <= top_left.x) top_left.x = new_pixel.x;
             if (new_pixel.y <= top_left.y) top_left.y = new_pixel. y;
@@ -684,7 +690,7 @@ void ChangeDetector::find_and_reproject_previous_detections_onto_image(ChangeDet
     }
 
     // Draw bounding box around the previously detected object
-    show_object_on_image(prev_obj, image_zed_ocv, top_left, bottom_right, display_resolution, resolution);
+    show_object_on_image(prev_obj, image_zed_ocv, top_left, bottom_right);
 
     sl::uint2 A = { (unsigned int)top_left.x, (unsigned int)top_left.y };
     sl::uint2 B = { (unsigned int)top_right.x, (unsigned int)top_right.y };
@@ -697,13 +703,10 @@ void ChangeDetector::find_and_reproject_previous_detections_onto_image(ChangeDet
  * This function adds a previously detected object to the list of currently detected objects if that object is visible in the new run 
  * input1: the previously detected object
  * input2: camera pose
- * input4: initial parameters of the camera
- * input5: calibration parameters of the camera
- * input6: new, detected list of objects
- * input7: the Pixel which is the reprojection of the object's 3d location onto the 2d image plane
+ * input3: new, detected list of objects
+ * input4: the Pixel which is the reprojection of the object's 3d location onto the 2d image plane
  **/
-sl::ObjectData ChangeDetector::add_previous_detections_to_sl_objects(ChangeDetector::DetectedObject prev_obj, sl::Pose cam_pose, sl::InitParameters init_parameters,
-    sl::CameraParameters calib_param_, std::vector<sl::ObjectData>& object_list, cv::Point Pixel) {
+sl::ObjectData ChangeDetector::add_previous_detections_to_sl_objects(ChangeDetector::DetectedObject prev_obj, sl::Pose cam_pose, std::vector<sl::ObjectData>& object_list, cv::Point Pixel) {
 
     // Convert into sl::Object
     sl::ObjectData prev_Obj;
@@ -720,4 +723,80 @@ sl::ObjectData ChangeDetector::add_previous_detections_to_sl_objects(ChangeDetec
     object_list.push_back(prev_Obj);
 
     return prev_Obj;
+}
+
+/**
+ * This function compares the previously and the currently detected objects and decides if they are a match or if there has been a change
+ * input1: min point of the pointcloud
+ * input2: max point of the point cloud
+ * input3: previously detected vector of objects
+ * input4: camera pose
+ * input5: opencv image, on which the results are displayed
+ * input6: currently detected list of sl::objects
+ * input7: currently detected vector of objects 
+ **/
+void ChangeDetector::compare_for_change(pcl::PointXYZRGB min_, pcl::PointXYZRGB max_, std::vector<ChangeDetector::DetectedObject>& PreviouslyDetectedObjects, sl::Pose cam_pose,
+    cv::Mat& image_zed_ocv, std::vector<sl::ObjectData>& object_list, std::vector<ChangeDetector::DetectedObject>& DetectedObjects) {
+    // Querying the PREVIOUS DETECTIONS to see if they are visible in the current state and comparing them with the current detections
+    for (auto prev_obj : PreviouslyDetectedObjects) {
+        auto posi_ = prev_obj.position;
+        if ((posi_.x < max_.x && posi_.x > min_.x) && (posi_.y < max_.y && posi_.y > min_.y) && (posi_.z < max_.z && posi_.z > min_.z)) {
+            sl::Translation new_position = transform_p_world_to_p_cam(posi_, cam_pose);
+            if (new_position.z > 0 || new_position.z < (-1) * (ZEDParameter.init_parameters.depth_maximum_distance - 1000.0f)) continue;
+            cv::Point Pixel = _3d_point_to_2d_pixel(new_position);
+            if (Pixel.x < 0 || Pixel.y < 0 || Pixel.x >= ZEDParameter.calib_param_.image_size.width || Pixel.y >= ZEDParameter.calib_param_.image_size.height) continue;
+            // Displaying previous detections on the new run's IMAGE
+            find_and_reproject_previous_detections_onto_image(prev_obj, image_zed_ocv, cam_pose, Pixel);
+            // Adding previous detections to the object list and displaying them later on the new run's POINTCLOUD
+            sl::ObjectData found_prev = add_previous_detections_to_sl_objects(prev_obj, cam_pose, object_list, Pixel);
+            if (DetectedObjects.size() > 0) {
+                auto close_ids = return_closest_objects<sl::ObjectData>(DetectedObjects, found_prev, 1500, false); // distance of bounding box centroids
+                if (close_ids.size() == 0) { // IF A PREVIOUSLY DETECTED OBJECT IS NOT FOUND ANYMORE
+                    display_change_or_no_change_of_object<sl::ObjectData>(image_zed_ocv, found_prev, true);
+                }
+                else {
+                    for (int talalt_id = 0; talalt_id < close_ids.size(); talalt_id++) {
+                        float percentage = knn_search(DetectedObjects[close_ids[talalt_id]].object_3d_pointcloud, prev_obj.object_3d_pointcloud, 10000); // squared distance of neighbourpoints
+                        if (percentage > 0.4) {
+                            // SAME OBJECT
+                            display_change_or_no_change_of_object<sl::ObjectData>(image_zed_ocv, found_prev, false);
+                        }
+                        else {
+                            // NOT THE SAME OBJECT
+                            display_change_or_no_change_of_object<sl::ObjectData>(image_zed_ocv, found_prev, true);
+                        }
+                    }
+                }
+            }
+            else { // IF A PREVIOUSLY DETECTED OBJECT IS NOT FOUND ANYMORE
+                display_change_or_no_change_of_object<sl::ObjectData>(image_zed_ocv, found_prev, true);
+            }
+        }
+    }
+    // Querying the CURRENT DETECTIONS to see if they match the previous detections or not
+    if (DetectedObjects.size() > 0) {
+        for (auto detected_obj : object_list) {
+            if (!std::isfinite(detected_obj.position.z)) continue;
+            auto ids = return_closest_objects<sl::ObjectData>(PreviouslyDetectedObjects, detected_obj, 1000, false); // distance of bounding box centroids
+            if (ids.size() == 0) { // IF A NEWLY DETECTED OBJECT WAS NOT THERE IN THE PREVIOUS RUN
+                display_change_or_no_change_of_object<sl::ObjectData>(image_zed_ocv, detected_obj, true);
+            }
+        }
+    }
+}
+
+/**
+ * This function sets the initial parameters of the project
+ * input1: initial parameters of the camera
+ * input2: calibration parameters of the camera
+ * input3: display resolution of the image output
+ * input4: width ratio between camera and image output resolution
+ * input5: height ratio between camera and image output resolution
+ **/
+ void ChangeDetector::setZedParameters(sl::InitParameters init_parameters, sl::CameraParameters calib_param_, sl::Resolution display_resolution, float ratio_width, float ratio_height) {
+    ZEDParameter.init_parameters = init_parameters;
+    ZEDParameter.calib_param_ = calib_param_;
+    ZEDParameter.display_resolution = display_resolution;
+    ZEDParameter.ratio_width = ratio_width;
+    ZEDParameter.ratio_height = ratio_height;
 }

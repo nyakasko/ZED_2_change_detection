@@ -23,6 +23,8 @@
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/classification.hpp>
 
+static bool sortbysec(std::tuple<int, float>& a, std::tuple<int, float>& b);
+
 class ChangeDetector {
 public:
 	struct DetectedObject {
@@ -41,6 +43,14 @@ public:
 		int overall_detection_num; // overall number of detections -- after post-processing
 		bool ismoving; // indicates if the object is moving or not
 		std::string path_to_pointcloud; // path to the stored point cloud file of the object
+	};
+	struct ZEDParameters {
+		sl::InitParameters init_parameters; // camera initial parameters
+		sl::CameraParameters calib_param_; // camera calibration parameters
+		sl::Resolution display_resolution; // display resolution
+		sl::Resolution resolution; // camera resolution
+		float ratio_width;
+		float ratio_height;
 	};
 	std::map <std::string, sl::OBJECT_SUBCLASS> get_sl_subclass{
 		{"Person", sl::OBJECT_SUBCLASS::PERSON },
@@ -66,15 +76,16 @@ public:
 		{"Orange", sl::OBJECT_SUBCLASS::ORANGE },
 		{"Carrot", sl::OBJECT_SUBCLASS::CARROT}
 	};
+
 	void measurement_to_pcl(sl::Mat measurement, pcl::PointCloud<pcl::PointXYZRGB>::Ptr &p_pcl_point_cloud);
 	float convertColor(float colorIn);
-	void show_object_on_image(ChangeDetector::DetectedObject object, cv::Mat image_zed_ocv, cv::Point top_left, cv::Point bottom_right, sl::Resolution display_resolution, sl::Resolution camera_resolution);
+	void show_object_on_image(ChangeDetector::DetectedObject object, cv::Mat& image_zed_ocv, cv::Point top_left, cv::Point bottom_right);
 	void show_object_detection_on_point_cloud(std::shared_ptr<pcl::visualization::PCLVisualizer> pcl_viewer, sl::Objects objects, int &id);
 	void segment_and_show_bounding_box_from_point_cloud(std::shared_ptr<pcl::visualization::PCLVisualizer> filter_viewer, sl::Objects objects,
 		pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud, pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_pcl, int& id);
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr segment_bounding_box(std::vector<sl::float3> bounding_box_3d, pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud);
-	void show_object_detection_on_image(sl::Objects objects, cv::Mat image_zed_ocv, sl::Resolution display_resolution, sl::Resolution camera_resolution, int& detection_confidence);
-	cv::Point resize_coordinates(int x, int y, sl::Resolution display_resolution, sl::Resolution camera_resolution);
+	void show_object_detection_on_image(sl::Objects objects, cv::Mat image_zed_ocv, int& detection_confidence);
+	cv::Point resize_coordinates(int x, int y);
 	std::shared_ptr<pcl::visualization::PCLVisualizer> createRGBVisualizer(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr cloud);
 	float knn_search(pcl::PointCloud<pcl::PointXYZRGB>::Ptr pcl_ref, pcl::PointCloud<pcl::PointXYZRGB>::Ptr pcl_sample, int distance);
 	template <class T>
@@ -86,17 +97,17 @@ public:
 	void registerNewObject(sl::ObjectData zedObject, ChangeDetector::DetectedObject& newDetectedObject, pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud, bool verbose);
 	void read_previously_saved_detected_objects(std::string saved_xml_file_path, std::vector<ChangeDetector::DetectedObject>& PreviouslyDetectedObjects);
 	sl::Translation transform_p_world_to_p_cam(sl::Translation current_pos, sl::Pose cam_pose);
-	cv::Point _3d_point_to_2d_pixel(sl::Translation new_position, sl::CameraParameters calib_param);
-	void find_and_reproject_previous_detections_onto_image(ChangeDetector::DetectedObject& prev_obj, cv::Mat image_zed_ocv, sl::Pose cam_pose, sl::InitParameters init_parameters,
-		sl::CameraParameters calib_param_, sl::Resolution display_resolution, sl::Resolution resolution, cv::Point Pixel);
-	sl::ObjectData add_previous_detections_to_sl_objects(ChangeDetector::DetectedObject prev_obj, sl::Pose cam_pose, sl::InitParameters init_parameters,
-		sl::CameraParameters calib_param_, std::vector<sl::ObjectData>& object_list, cv::Point Pixel);
+	cv::Point _3d_point_to_2d_pixel(sl::Translation new_position);
+	void find_and_reproject_previous_detections_onto_image(ChangeDetector::DetectedObject& prev_obj, cv::Mat& image_zed_ocv, sl::Pose cam_pose, cv::Point Pixel);
+	sl::ObjectData add_previous_detections_to_sl_objects(ChangeDetector::DetectedObject prev_obj, sl::Pose cam_pose, std::vector<sl::ObjectData>& object_list, cv::Point Pixel);
 	template <class T>
-	void display_change_or_no_change_of_object(cv::Mat image_zed_ocv, T found_prev, sl::Resolution display_resolution, sl::Resolution resolution, bool change);
+	void display_change_or_no_change_of_object(cv::Mat& image_zed_ocv, T found_prev, bool change);
+	void compare_for_change(pcl::PointXYZRGB min_, pcl::PointXYZRGB max_, std::vector<ChangeDetector::DetectedObject>& PreviouslyDetectedObjects, sl::Pose cam_pose,
+		cv::Mat& image_zed_ocv, std::vector<sl::ObjectData>& object_list, std::vector<ChangeDetector::DetectedObject>& DetectedObjects);
+	void setZedParameters(sl::InitParameters init_parameters, sl::CameraParameters calib_param_, sl::Resolution display_resolution, float ratio_width, float ratio_height);
+
 };
 
-
-static bool sortbysec(std::tuple<int, float>& a, std::tuple<int, float>& b);
 /**
  * This is a comparison function to sort the vector elements by second element of tuples
  * input1: first tuple to compare
@@ -112,6 +123,7 @@ static bool sortbysec(std::tuple<int, float>& a, std::tuple<int, float>& b) {
  * input1: list of detected objects
  * input2: new detected object
  * input3: centroid distance threshold
+ * input4: verbosity level for debugging
  * return: ids of the closest previously detected objects
  **/
 template <class T>
@@ -140,14 +152,13 @@ std::vector<int> ChangeDetector::return_closest_objects(std::vector<ChangeDetect
 
 
 /**
- * This function displays the change when a previously detected object is not found anymore
+ * This function displays the change or match between 2 consecutive runs
  * input1: opencv image
  * input2: previously found object
- * input3: display resolution of the opencv image
- * input4: resolution of the camera
+ * input3: whether there was a change or a match between 2 runs
  **/
 template <class T>
-void ChangeDetector::display_change_or_no_change_of_object(cv::Mat image_zed_ocv, T found_prev, sl::Resolution display_resolution, sl::Resolution resolution, bool change = true) {
+void ChangeDetector::display_change_or_no_change_of_object(cv::Mat& image_zed_ocv, T found_prev, bool change = true) {
 	//SetConsoleTextAttribute(hConsole, 5);
 	//printf("Detected change - NEW OBJECT %s, because there were no newly detected close objects.\n", (std::string)sl::toString(found_prev.sublabel));
 	//SetConsoleTextAttribute(hConsole, 15);
@@ -157,10 +168,10 @@ void ChangeDetector::display_change_or_no_change_of_object(cv::Mat image_zed_ocv
 	cv::Point bottom_right_corner;
 	cv::Point bottom_left_corner;
 	if (found_prev.id != -10) {
-		top_left_corner = resize_coordinates(found_prev.bounding_box_2d[0].x, found_prev.bounding_box_2d[0].y, display_resolution, resolution);
-		top_right_corner = resize_coordinates(found_prev.bounding_box_2d[1].x, found_prev.bounding_box_2d[1].y, display_resolution, resolution);
-		bottom_right_corner = resize_coordinates(found_prev.bounding_box_2d[2].x, found_prev.bounding_box_2d[2].y, display_resolution, resolution);
-		bottom_left_corner = resize_coordinates(found_prev.bounding_box_2d[3].x, found_prev.bounding_box_2d[3].y, display_resolution, resolution);
+		top_left_corner = resize_coordinates(found_prev.bounding_box_2d[0].x, found_prev.bounding_box_2d[0].y);
+		top_right_corner = resize_coordinates(found_prev.bounding_box_2d[1].x, found_prev.bounding_box_2d[1].y);
+		bottom_right_corner = resize_coordinates(found_prev.bounding_box_2d[2].x, found_prev.bounding_box_2d[2].y);
+		bottom_left_corner = resize_coordinates(found_prev.bounding_box_2d[3].x, found_prev.bounding_box_2d[3].y);
 	}
 	else {
 		top_left_corner = cv::Point(found_prev.bounding_box_2d[0].x, found_prev.bounding_box_2d[0].y);
@@ -176,8 +187,7 @@ void ChangeDetector::display_change_or_no_change_of_object(cv::Mat image_zed_ocv
 		else overlay(roi).setTo(cv::Scalar(34, 139, 34, 255));
 		cv::addWeighted(image_zed_ocv, 0.5, overlay, 0.5, 0.0, image_zed_ocv);
 		cv::Point below = bottom_left_corner + cv::Point(0, 15);
-		if (change)	cv::putText(image_zed_ocv, "CHANGE", below, cv::FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(0, 165, 255, 255), 1);
-		else cv::putText(image_zed_ocv, "MATCH", below, cv::FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(34, 139, 34, 255), 1);
-
+		if (change)	cv::putText(image_zed_ocv, "CHANGE", below, cv::FONT_HERSHEY_TRIPLEX, 0.4, cv::Scalar(0, 165, 255, 255), 1.5);
+		else cv::putText(image_zed_ocv, "MATCH", below, cv::FONT_HERSHEY_TRIPLEX, 0.4, cv::Scalar(34, 139, 34, 255), 1.5);
 	}
 }
