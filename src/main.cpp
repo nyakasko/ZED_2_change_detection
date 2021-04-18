@@ -89,6 +89,9 @@ int main(int argc, char **argv) {
     POSITIONAL_TRACKING_STATE tracking_state = POSITIONAL_TRACKING_STATE::OFF;
     PositionalTrackingParameters positional_tracking_parameters;
     positional_tracking_parameters.enable_area_memory = true;
+    SetConsoleTextAttribute(hConsole, 2);
+    std::cout << "Area memory has been enabled and will help in achieving better positioning accuracy and in keeping a shared coordinate system between patrol runs" << std::endl;
+    SetConsoleTextAttribute(hConsole, 15);
 
 #if !first_run
     positional_tracking_parameters.area_file_path = (saved_file_name + ".area").c_str();
