@@ -36,7 +36,7 @@ bool equalPoint(pcl::PointXYZRGB p1, pcl::PointXYZRGB p2) {
 }
 
 /**
- * This function convert a RGBA color packed into a packed RGBA PCL compatible format
+ * This function convert a RGBA color packed into a packed RGB PCL compatible format
  * input: ZED rgba float data
  * output: PCL compatible rgb data
  **/
