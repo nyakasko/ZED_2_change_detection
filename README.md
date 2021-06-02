@@ -14,9 +14,9 @@ Please find the written thesis containing the results of the change detection al
 
 ## Dependencies
 
-- OpenCV library for displaying and manipulating 2D images
+- [OpenCV](https://github.com/stereolabs/zed-opencv) library for displaying and manipulating 2D images
 - boost library for XML document generation
-- Point Cloud Library (PCL) for point cloud data manipulation and display
+- [Point Cloud Library (PCL)](https://github.com/stereolabs/zed-pcl) for point cloud data manipulation and display
 - ZED camera specific library (SL, stands for StereoLabs, which is the manufacturer of the camera) for controlling the camera
 - CUDA and Open Graphics Library (OpenGL) libraries for displaying 3D point clouds
 
