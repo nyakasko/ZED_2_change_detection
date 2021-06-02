@@ -36,7 +36,7 @@ Download the sample and follow the instructions below: [More](https://www.stereo
 - To run the program using a previously recorded footage, an input parameter is required: The absolute path to the .svo file containing the recording.
 - Moreover, in the code, the `first_run` macro determines if the provided recording will be used only to create the semantic map or look for an already saved semantic map and detect changes using comparison between multiple runs. (This feature should be updated to work automatically)
 
-More specifically: During the `first run`, the algorithm described in the image below runs.
+More specifically: During the `first run`, the following algorithm that is described in the image below runs.
 
 ![](https://github.com/nyakasko/ZED_2_change_detection/blob/main/documentation/change_det_1.PNG)
 
