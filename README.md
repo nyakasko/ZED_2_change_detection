@@ -32,10 +32,5 @@ Download the sample and follow the instructions below: [More](https://www.stereo
  
 ## Run the program
 - To run the program using a previously recorded footage, an input parameter is required: The absolute path to the .svo file containing the recording.
+- Moreover, in the code, the `first_run` macro determines if the provided recording will be used only to create the semantic map or look for an already saved semantic map and detect changes using comparison between multiple runs. (This feature should be updated to work automatically)
 
-### Features
- - real time 3D display of the current fused point cloud
- - press 'f' to un/follow the camera movement
- 
-## Support
-If you need assistance go to our Community site at https://community.stereolabs.com/
