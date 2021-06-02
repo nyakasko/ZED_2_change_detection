@@ -1,6 +1,6 @@
 # Change detection algorithm using the ZED 2 stereo camera
 
-This code is an initial version of the change detection algorithm developed using the [ZED 2 stereo camera](https://www.stereolabs.com/zed-2/). The program was developed by Levente Göncz at `SZTAKI (Institute for Computer Science and Control)` in a framework of a 4 months long master thesis project, mandatory according to the `EIT Digital Masterschool`, `Aalto University` and `ELTE (Eötvös Loránd University), Faculty of Informatics`. The program is using some of the [tutorial codes](https://github.com/stereolabs/zed-examples) by the manufacturer of the ZED 2 stereo camera, Stereolabs.
+This code is an initial version of the change detection algorithm developed using the [ZED 2 stereo camera](https://www.stereolabs.com/zed-2/). The program was developed by Levente Göncz at `SZTAKI (Institute for Computer Science and Control)` in a framework of a 4 months long master thesis project, mandatory according to the `EIT Digital Masterschool`, `Aalto University` and `ELTE (Eötvös Loránd University), Faculty of Informatics`. The program is using some of the [tutorial codes](https://github.com/stereolabs/zed-examples) provided by the manufacturer of the ZED 2 stereo camera, Stereolabs.
 The entire code of the algorithm was written by the author of this thesis. The parts proposed by [Sünderhauf et al.](https://ieeexplore.ieee.org/document/8206392) have been used as a written inspiration, the code itself was entirely programmed by the author of this thesis.
 
 ## Getting Started
@@ -8,7 +8,7 @@ The entire code of the algorithm was written by the author of this thesis. The p
  - Get the latest [ZED SDK and CUDA](https://www.stereolabs.com/developers/release/)
  - Note, the ZED SDK installer automatically installs the necessary CUDA version. During the development of this program, `ZED SDK for Windows 10` version `3.5.0` and `CUDA` version `11.1` were used. The program was developed and compiled using `Visual Studio 2019`.
  - Check the [Documentation](https://www.stereolabs.com/docs/)
- - In order to make sure the ZED SDK has been installed properly: try running one of the sample tutorial codes found [here](https://github.com/stereolabs/zed-examples).
+ - In order to make sure the ZED SDK has been installed properly, please try building and running one of the sample tutorial codes found [here](https://github.com/stereolabs/zed-examples).
 
 ## Dependencies
 
@@ -20,7 +20,7 @@ The entire code of the algorithm was written by the author of this thesis. The p
 
 ## Build the program
 
-Download the sample and follow the instructions below: [More](https://www.stereolabs.com/docs/getting-started/application-development/)
+Download the sample and follow the instructions below: [More](https://www.stereolabs.com/docs/app-development/cpp/windows/)
 
 #### Build for Windows
 
