@@ -361,7 +361,7 @@ void ChangeDetector::data_association_of_detected_objects(pcl::PointCloud<pcl::P
             if (newDetectedObject.has_object_3d_pointcloud == true && newDetectedObject.object_3d_pointcloud->points.size() > 100 && newDetectedObject.ismoving == false) {
                 if (DetectedObjects.size() > 0) {
                     auto ids = return_closest_objects<ChangeDetector::DetectedObject>(DetectedObjects, newDetectedObject, eucl_dist, verbose); // distance of bounding box centroids
-                    //std::string writePath = "D:/zed codes/zed_change_pcl/build/obj_pcls/" + newDetectedObject.label + "_" + std::to_string(DetectedObjects.size()) + ".ply";
+                    //std::string writePath = "../build/obj_pcls/" + newDetectedObject.label + "_" + std::to_string(DetectedObjects.size()) + ".ply";
                     //pcl::io::savePLYFileBinary(writePath, *newDetectedObject.object_3d_pointcloud);
 
                     int track = newDetectedObject.tracking_id;
@@ -514,7 +514,7 @@ void ChangeDetector::save_and_visualize_end_result(std::string input_pointcloud_
         {
             segment_final = segment_bounding_box(detectedObject->bounding_box_3d, final_output);
             if (segment_final->size() > 200) {
-                std::string writePath = "D:/zed codes/zed_change_pcl/build/final_objects/" + detectedObject->label + "_" + std::to_string(detectedObject->tracking_id) + ".ply";
+                std::string writePath = "../build/final_objects/" + detectedObject->label + "_" + std::to_string(detectedObject->tracking_id) + ".ply";
                 pcl::io::savePLYFileBinary(writePath, *segment_final);
 
                 save_data_association_result(*detectedObject, writePath, tree);

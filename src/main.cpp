@@ -27,7 +27,7 @@ using namespace sl;
 // macro for showing the 3d pointclouds segmented by their 3d bounding boxes
 #define SHOW_SEGMENTED 0
 // macro for deciding if the code runs for the t[i] or t[i+1] time - t[i] -> data association, t[i+1] ->change detection
-#define first_run 0 
+#define first_run 1 
 // macro for deciding if the 3d pointcloud should be shown using GLViewer or PCLviewer
 #define show_pointcloud_in_pcl 0
 
@@ -45,7 +45,7 @@ int main(int argc, char **argv) {
     std::vector<ChangeDetector::DetectedObject> DetectedObjects;
     std::vector<ChangeDetector::DetectedObject> PreviouslyDetectedObjects;
     int id = 0; // Bounding box PCL id
-    const string saved_xml_file_path = "D:/zed codes/zed_change_pcl/build/data_association.xml";
+    const string saved_xml_file_path = "../build/data_association.xml";
     /************************************************/
              /*Camera init*/
 
@@ -353,7 +353,7 @@ int main(int argc, char **argv) {
     map.save(saved_file_name.c_str(), MESH_FILE_FORMAT::PLY);
 
     // Save and visualize the result, but leave out objects with number of detections less than 5 and pointcloud points less than 200
-    changedetector.save_and_visualize_end_result("D:/zed codes/zed_change_pcl/build/" + saved_file_name + ".ply", DetectedObjects);
+    changedetector.save_and_visualize_end_result("../build/" + saved_file_name + ".ply", DetectedObjects);
 
     // Save area map so that in the second run the camera will be able relocalize itself
     zed.saveAreaMap((saved_file_name + ".area").c_str());
