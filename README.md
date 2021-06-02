@@ -54,3 +54,11 @@ Example of 3D semantic mapping and the segmented 3D point clouds of stored objec
 The XML structure that is used to store the object of the segmented object database:
 
 ![](https://github.com/nyakasko/ZED_2_change_detection/blob/main/documentation/xml_structure.PNG)
+
+During the 2nd patrol route, the following algorithm, described in the image below, runs.
+
+![](https://github.com/nyakasko/ZED_2_change_detection/blob/main/documentation/change_det_2.PNG)
+
+Example of the change detection algorithm:
+
+![](https://github.com/nyakasko/ZED_2_change_detection/blob/main/documentation/example_of_change_detection.PNG)
