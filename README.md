@@ -50,3 +50,7 @@ Example of 3D semantic mapping and the segmented 3D point clouds of stored objec
 3D semantic mapping             |  3D point clouds of stored objects in the object database
 :-------------------------:|:-------------------------:
 ![](https://github.com/nyakasko/ZED_2_change_detection/blob/main/documentation/example_of_semantic_mapping.PNG)  |  ![](https://github.com/nyakasko/ZED_2_change_detection/blob/main/documentation/segmented_objects.PNG)
+
+The XML structure that is used to store the object of the segmented object database:
+
+![](https://github.com/nyakasko/ZED_2_change_detection/blob/main/documentation/xml_structure.PNG)
