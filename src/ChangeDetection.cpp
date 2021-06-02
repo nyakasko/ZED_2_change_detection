@@ -353,6 +353,7 @@ void ChangeDetector::data_association_of_detected_objects(pcl::PointCloud<pcl::P
     bool should_add = true;
     if (!objects.object_list.empty()) {
         for (int index = 0; index < objects.object_list.size(); index++) {
+            //auto now = std::chrono::high_resolution_clock::now();
             if (objects.object_list[index].id == -10) continue; // don't save one of the previously detected objects (those have an id=-10)
             ChangeDetector::DetectedObject newDetectedObject;
             registerNewObject(objects.object_list[index], newDetectedObject, p_pcl_point_cloud, verbose);
@@ -405,13 +406,14 @@ void ChangeDetector::data_association_of_detected_objects(pcl::PointCloud<pcl::P
                                     DetectedObjects[ids[i]].bounding_box_3d[pont] = DetectedObjects[ids[i]].bounding_box_3d_sum[pont] / DetectedObjects[ids[i]].overall_detection_num;
                                 }
 
-                                // NAGYON LASSÚ
                                 // Updating object point cloud
                                 auto current_pcl_size = DetectedObjects[ids[i]].object_3d_pointcloud->points.size();
                                 auto new_pcl_size = newDetectedObject.object_3d_pointcloud->points.size();
                                 if (new_pcl_size > current_pcl_size) {
                                     DetectedObjects[ids[i]].object_3d_pointcloud = newDetectedObject.object_3d_pointcloud;
                                 }
+                                // NAGYON LASSÚ
+
                                 //DetectedObjects[ids[i]].object_3d_pointcloud->points.resize(current_pcl_size + newDetectedObject.object_3d_pointcloud->points.size());
                                 //for (int nIndex = 0; nIndex < newDetectedObject.object_3d_pointcloud->points.size(); nIndex++){
                                 //    int bigIndex = current_pcl_size + nIndex;
@@ -453,6 +455,8 @@ void ChangeDetector::data_association_of_detected_objects(pcl::PointCloud<pcl::P
                     DetectedObjects.push_back(newDetectedObject);
                 }
             }
+            //auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - now).count();
+            //std::cout << duration << std::endl;
         }
     }
 }
@@ -742,7 +746,7 @@ void ChangeDetector::compare_for_change(pcl::PointXYZRGB min_, pcl::PointXYZRGB 
         auto posi_ = prev_obj.position;
         if ((posi_.x < max_.x && posi_.x > min_.x) && (posi_.y < max_.y && posi_.y > min_.y) && (posi_.z < max_.z && posi_.z > min_.z)) {
             sl::Translation new_position = transform_p_world_to_p_cam(posi_, cam_pose);
-            if (new_position.z > 0 || new_position.z < (-1) * (ZEDParameter.init_parameters.depth_maximum_distance - 1000.0f)) continue;
+            if (new_position.z > 0 || new_position.z < (-1) * (ZEDParameter.init_parameters.depth_maximum_distance)) continue;
             cv::Point Pixel = _3d_point_to_2d_pixel(new_position);
             if (Pixel.x < 0 || Pixel.y < 0 || Pixel.x >= ZEDParameter.calib_param_.image_size.width || Pixel.y >= ZEDParameter.calib_param_.image_size.height) continue;
             // Displaying previous detections on the new run's IMAGE

@@ -27,7 +27,7 @@ using namespace sl;
 // macro for showing the 3d pointclouds segmented by their 3d bounding boxes
 #define SHOW_SEGMENTED 0
 // macro for deciding if the code runs for the t[i] or t[i+1] time - t[i] -> data association, t[i+1] ->change detection
-#define first_run 0
+#define first_run 0 
 // macro for deciding if the 3d pointcloud should be shown using GLViewer or PCLviewer
 #define show_pointcloud_in_pcl 0
 
@@ -388,7 +388,7 @@ void parse_args(int argc, char **argv,InitParameters& param){
     if (argc > 1 && string(argv[1]).find(".svo")!=string::npos) {
         // SVO input mode
         param.input.setFromSVOFile(argv[1]);
-        param.svo_real_time_mode=false; 
+        param.svo_real_time_mode=true; 
 
         cout<<"[Sample] Using SVO File input: "<<argv[1]<<endl;
     } else if (argc > 1 && string(argv[1]).find(".svo")==string::npos) {
