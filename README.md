@@ -1,7 +1,9 @@
 # Change detection algorithm using the ZED 2 stereo camera
 
 This code is an initial version of the change detection algorithm developed using the [ZED 2 stereo camera](https://www.stereolabs.com/zed-2/). The program was developed by Levente Göncz at `SZTAKI (Institute for Computer Science and Control)` in a framework of a 4 months long master thesis project, mandatory according to the `EIT Digital Masterschool`, `Aalto University` and `ELTE (Eötvös Loránd University), Faculty of Informatics`. The program is using some of the [tutorial codes](https://github.com/stereolabs/zed-examples) provided by the manufacturer of the ZED 2 stereo camera, Stereolabs.
-The entire code of the algorithm was written by the author of this thesis. The parts proposed by [Sünderhauf et al.](https://ieeexplore.ieee.org/document/8206392) have been used as a written inspiration, the code itself was entirely programmed by the author of this thesis.
+The entire code of the algorithm was written by the author of this thesis. The parts proposed by [Sünderhauf et al.](https://ieeexplore.ieee.org/document/8206392) have been used as a written inspiration, the code itself was entirely programmed by the author of this thesis. 
+
+Please find the written thesis containing the results of the change detection algorithm along with various tests on the ZED 2 stereo camera in the `documentation` folder of this repository.
 
 ## Getting Started
 
@@ -34,6 +36,13 @@ Download the sample and follow the instructions below: [More](https://www.stereo
 - To run the program using a previously recorded footage, an input parameter is required: The absolute path to the .svo file containing the recording.
 - Moreover, in the code, the `first_run` macro determines if the provided recording will be used only to create the semantic map or look for an already saved semantic map and detect changes using comparison between multiple runs. (This feature should be updated to work automatically)
 
-More specifically: During the `first run`, the algorithm descibed in the image below runs.
+More specifically: During the `first run`, the algorithm described in the image below runs.
+
 ![](https://github.com/nyakasko/ZED_2_change_detection/blob/main/documentation/change_det_1.PNG)
+
+It uses the following data association step to create an object oriented semantic map:
+
+Data association step             |  Object oriented semantic map
+:-------------------------:|:-------------------------:
+![](https://github.com/nyakasko/ZED_2_change_detection/blob/main/documentation/data_association_step.PNG)  |  ![](https://github.com/nyakasko/ZED_2_change_detection/blob/main/documentation/built_semantic_map.PNG)
 
