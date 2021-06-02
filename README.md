@@ -46,3 +46,7 @@ Data association step             |  Object oriented semantic map
 :-------------------------:|:-------------------------:
 ![](https://github.com/nyakasko/ZED_2_change_detection/blob/main/documentation/data_association_step.PNG)  |  ![](https://github.com/nyakasko/ZED_2_change_detection/blob/main/documentation/built_semantic_map.PNG)
 
+Example of 3D semantic mapping and the segmented 3D point clouds of stored objects in the object database:
+3D semantic mapping             |  3D point clouds of stored objects in the object database
+:-------------------------:|:-------------------------:
+![](https://github.com/nyakasko/ZED_2_change_detection/blob/main/documentation/example_of_semantic_mapping.PNG)  |  ![](https://github.com/nyakasko/ZED_2_change_detection/blob/main/documentation/segmented_objects.PNG)
