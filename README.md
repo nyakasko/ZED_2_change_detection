@@ -9,6 +9,7 @@ Please find the written thesis containing the results of the change detection al
 
  - Get the latest [ZED SDK and CUDA](https://www.stereolabs.com/developers/release/)
  - Note, the ZED SDK installer automatically installs the necessary CUDA version. During the development of this program, `ZED SDK for Windows 10` version `3.5.0` and `CUDA` version `11.1` were used. The program was developed and compiled using `Visual Studio 2019`.
+ - Important: A computer with at least 4 GB RAM and NVIDIA GPU with `Compute Capabilities > 3` is required, along with a USB 3.0 port. Without the necessary GPU, the ZED SDK won't work at all.
  - Check the [Documentation](https://www.stereolabs.com/docs/)
  - In order to make sure the ZED SDK has been installed properly, please try building and running one of the sample tutorial codes found [here](https://github.com/stereolabs/zed-examples).
 
