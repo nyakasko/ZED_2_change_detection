@@ -23,7 +23,7 @@ Please find the written thesis containing the results of the change detection al
 
 ## Build the program
 
-Follow the instructions below: [More](https://www.stereolabs.com/docs/app-development/cpp/windows/)
+Follow the instructions found here: [Building a C++ Application on Windows/Linux](https://www.stereolabs.com/docs/app-development/cpp/windows/)
 
 #### Build for Windows
 
