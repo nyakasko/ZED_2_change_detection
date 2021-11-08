@@ -1,9 +1,8 @@
 # Change detection algorithm using the ZED 2 stereo camera
 
 This code is an initial version of the change detection algorithm developed using the [ZED 2 stereo camera](https://www.stereolabs.com/zed-2/). The program was developed by Levente Göncz at `SZTAKI (Institute for Computer Science and Control)`. The program is using some of the [tutorial codes](https://github.com/stereolabs/zed-examples) provided by the manufacturer of the ZED 2 stereo camera, Stereolabs.
-The entire code of the algorithm was written by the author of this thesis. The data association part proposed by [Sünderhauf et al.](https://ieeexplore.ieee.org/document/8206392) has been used as a written inspiration, the code itself was entirely programmed by Levente Göncz. 
+The data association part proposed by [Sünderhauf et al.](https://ieeexplore.ieee.org/document/8206392) has been used as a written inspiration, the code itself was entirely programmed by Levente Göncz. 
 
-Please find the written thesis containing the results of the change detection algorithm along with various tests on the ZED 2 stereo camera in the `documentation` folder of this repository.
 
 ## Getting Started
 
