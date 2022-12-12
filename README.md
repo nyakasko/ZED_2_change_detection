@@ -25,7 +25,7 @@ Göncz, L., & Majdik, A. (2022). Object-Based Change Detection Algorithm with a 
 ```
 
 This code is an initial version of the change detection algorithm developed using the [ZED 2 stereo camera](https://www.stereolabs.com/zed-2/). The program was developed by Levente Göncz at `SZTAKI (Institute for Computer Science and Control)`. The program is using some of the [tutorial codes](https://github.com/stereolabs/zed-examples) provided by the manufacturer of the ZED 2 stereo camera, Stereolabs.
-The data association part proposed by [Sünderhauf et al.](https://ieeexplore.ieee.org/document/8206392) has been used as a written inspiration, the code itself was entirely programmed by Levente Göncz. 
+The data association part proposed by [Sünderhauf et al.](https://ieeexplore.ieee.org/document/8206392) has been used as a written inspiration.
 
 
 ## Getting Started
