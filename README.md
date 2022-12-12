@@ -1,8 +1,8 @@
 # Change detection algorithm using the ZED 2 stereo camera
 
-If you find this repository useful in your research, please consider citing our [published paper](https://www.mdpi.com/1424-8220/22/17/6342):
+If you find this repository useful in your research, please consider citing our [published paper](https://www.mdpi.com/1424-8220/22/17/6342).
 
-Bibtex format :
+BibTeX format
 ```
 @Article{s22176342,
 AUTHOR = {Göncz, Levente and Majdik, András László},
@@ -19,7 +19,7 @@ ABSTRACT = {This paper presents a real-time object-based 3D change detection met
 DOI = {10.3390/s22176342}
 }
 ```
-APA format:
+APA format
 ```
 Göncz, L., & Majdik, A. (2022). Object-Based Change Detection Algorithm with a Spatial AI Stereo Camera. Sensors, 22(17), 6342. https://doi.org/10.3390/s22176342
 ```
