@@ -1,5 +1,29 @@
 # Change detection algorithm using the ZED 2 stereo camera
 
+If you find this repository useful in your research, please consider citing our [published paper](https://www.mdpi.com/1424-8220/22/17/6342):
+
+Bibtex format :
+```
+@Article{s22176342,
+AUTHOR = {Göncz, Levente and Majdik, András László},
+TITLE = {Object-Based Change Detection Algorithm with a Spatial AI Stereo Camera},
+JOURNAL = {Sensors},
+VOLUME = {22},
+YEAR = {2022},
+NUMBER = {17},
+ARTICLE-NUMBER = {6342},
+URL = {https://www.mdpi.com/1424-8220/22/17/6342},
+PubMedID = {36080799},
+ISSN = {1424-8220},
+ABSTRACT = {This paper presents a real-time object-based 3D change detection method that is built around the concept of semantic object maps. The algorithm is able to maintain an object-oriented metric-semantic map of the environment and can detect object-level changes between consecutive patrol routes. The proposed 3D change detection method exploits the capabilities of the novel ZED 2 stereo camera, which integrates stereo vision and artificial intelligence (AI) to enable the development of spatial AI applications. To design the change detection algorithm and set its parameters, an extensive evaluation of the ZED 2 camera was carried out with respect to depth accuracy and consistency, visual tracking and relocalization accuracy and object detection performance. The outcomes of these findings are reported in the paper. Moreover, the utility of the proposed object-based 3D change detection is shown in real-world indoor and outdoor experiments.},
+DOI = {10.3390/s22176342}
+}
+```
+APA format:
+```
+Göncz, L., & Majdik, A. (2022). Object-Based Change Detection Algorithm with a Spatial AI Stereo Camera. Sensors, 22(17), 6342. https://doi.org/10.3390/s22176342
+```
+
 This code is an initial version of the change detection algorithm developed using the [ZED 2 stereo camera](https://www.stereolabs.com/zed-2/). The program was developed by Levente Göncz at `SZTAKI (Institute for Computer Science and Control)`. The program is using some of the [tutorial codes](https://github.com/stereolabs/zed-examples) provided by the manufacturer of the ZED 2 stereo camera, Stereolabs.
 The data association part proposed by [Sünderhauf et al.](https://ieeexplore.ieee.org/document/8206392) has been used as a written inspiration, the code itself was entirely programmed by Levente Göncz. 
 
